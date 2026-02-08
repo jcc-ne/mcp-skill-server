@@ -21,7 +21,56 @@ uv sync
 uv run mcp-skill-server /path/to/my/skills
 ```
 
-Add to your MCP client config (e.g., Claude Desktop):
+## Configuration
+
+### Claude Code
+
+Add to your `~/.claude/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "skills": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/mcp-skill-server", "mcp-skill-server", "/path/to/my/skills"]
+    }
+  }
+}
+```
+
+Or configure per-project in `.claude/settings.json` in your project root.
+
+### Cursor
+
+Add to your Cursor MCP settings (Settings → MCP → Add Server):
+
+```json
+{
+  "mcpServers": {
+    "skills": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/mcp-skill-server", "mcp-skill-server", "/path/to/my/skills"]
+    }
+  }
+}
+```
+
+Or add to `.cursor/mcp.json` in your project:
+
+```json
+{
+  "mcpServers": {
+    "skills": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/mcp-skill-server", "mcp-skill-server", "/path/to/my/skills"]
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
 ```json
 {
