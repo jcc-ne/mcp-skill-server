@@ -9,7 +9,7 @@ from .loader import (
     parse_subcommands,
     parse_parameters,
 )
-from .executor import SkillExecutor, ExecutionResult
+from .executor import SkillExecutor, ExecutionResult, ALLOWED_RUNTIMES
 from .models import (
     SkillInfo,
     SkillListResponse,
@@ -29,6 +29,8 @@ __all__ = [
     "Skill",
     "SkillExecutor",
     "ExecutionResult",
+    # Security
+    "ALLOWED_RUNTIMES",
     # Plugins
     "OutputHandler",
     "LocalOutputHandler",

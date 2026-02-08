@@ -85,7 +85,22 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 ## Creating a Skill
 
-### 1. Create a folder with your script
+### Option A: Use `skill init` (recommended)
+
+```bash
+# Create a new skill
+uv run mcp-skill-server init ./my_skills/hello -n "hello" -d "A friendly greeting"
+
+# Or convert an existing Claude skill (adds entry point)
+uv run mcp-skill-server init ./existing_claude_skill
+
+# Validate before deployment
+uv run mcp-skill-server validate ./my_skills/hello
+```
+
+### Option B: Manual setup
+
+#### 1. Create a folder with your script
 
 ```
 my_skills/
@@ -94,13 +109,13 @@ my_skills/
     └── hello.py
 ```
 
-### 2. Add SKILL.md with frontmatter
+#### 2. Add SKILL.md with frontmatter
 
 ```yaml
 ---
 name: hello
 description: A friendly greeting skill
-entry: python hello.py
+entry: uv run python hello.py
 ---
 
 # Hello Skill
@@ -108,7 +123,7 @@ entry: python hello.py
 Greets the user by name.
 ```
 
-### 3. Write your script with argparse
+#### 3. Write your script with argparse
 
 ```python
 # hello.py
@@ -121,12 +136,27 @@ args = parser.parse_args()
 print(f"Hello, {args.name}!")
 ```
 
-### 4. Test it
+### Skill Maturity Progression
 
-The MCP server automatically discovers:
-- Subcommands from `--help`
-- Parameters and their types
-- Required vs optional arguments
+```
+1. Claude Skill (no entry)     → Prompt-based, LLM uses its own tools
+2. MCP Skill (entry required)  → Formalized script, testable via MCP
+3. Production                  → Deployed to enterprise MCP server
+```
+
+Use `skill init` to promote from stage 1 → 2.
+
+### Validate Before Deployment
+
+```bash
+uv run mcp-skill-server validate ./my_skills/hello
+```
+
+Checks:
+- Required frontmatter fields (name, description, entry)
+- Entry command uses allowed runtime
+- Script file exists
+- Commands discoverable via `--help`
 
 ## MCP Tools
 
