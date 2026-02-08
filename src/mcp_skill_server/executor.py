@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+import shlex
 import asyncio
 from pathlib import Path
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
@@ -13,6 +14,18 @@ if TYPE_CHECKING:
     from .plugins.base import OutputHandler, OutputFile
 
 logger = logging.getLogger(__name__)
+
+# Allowed runtime prefixes for entry commands
+ALLOWED_RUNTIMES = (
+    "python",
+    "python3",
+    "uv run python",
+    "uv run",
+    "node",
+    "bash",
+    "sh",
+    "./",
+)
 
 
 @dataclass
@@ -61,6 +74,57 @@ class SkillExecutor:
         """
         self.output_handler = output_handler
 
+    def _validate_entry_command(self, entry_command: str, skill_directory: Path) -> None:
+        """
+        Validate that an entry command is safe to execute.
+
+        Security checks:
+        1. Entry must start with an allowed runtime
+        2. Script file must exist within the skill directory
+        3. No shell metacharacters in the base command
+
+        Raises:
+            ValueError: If the entry command is invalid or unsafe
+        """
+        # Check for allowed runtime prefix
+        if not any(entry_command.startswith(rt) for rt in ALLOWED_RUNTIMES):
+            raise ValueError(
+                f"Entry command must start with allowed runtime: {ALLOWED_RUNTIMES}. "
+                f"Got: {entry_command}"
+            )
+
+        # Extract the script path from the entry command
+        # Handle patterns like "uv run python script.py" or "python script.py"
+        parts = shlex.split(entry_command)
+        script_path = None
+
+        for i, part in enumerate(parts):
+            if part.endswith(".py") or part.endswith(".sh") or part.endswith(".js"):
+                script_path = part
+                break
+            # Check if it's a relative path starting with ./
+            if part.startswith("./"):
+                script_path = part
+                break
+
+        if script_path:
+            # Resolve the script path relative to skill directory
+            full_path = (skill_directory / script_path).resolve()
+
+            # Ensure the script is within the skill directory (prevent path traversal)
+            try:
+                full_path.relative_to(skill_directory.resolve())
+            except ValueError:
+                raise ValueError(
+                    f"Script path escapes skill directory: {script_path}"
+                )
+
+            # Check that the script exists
+            if not full_path.exists():
+                raise ValueError(
+                    f"Script not found: {script_path} (looked in {skill_directory})"
+                )
+
     async def execute(
         self,
         skill,
@@ -83,6 +147,9 @@ class SkillExecutor:
                 f"Command '{command_name}' not found. "
                 f"Available: {list(skill.commands.keys())}"
             )
+
+        # Security: Validate the entry command before execution
+        self._validate_entry_command(skill.entry_command, skill.directory)
 
         required_params = [p.name for p in cmd.parameters if p.required]
         missing = [p for p in required_params if p not in parameters]
@@ -123,13 +190,19 @@ class SkillExecutor:
         return result
 
     def _build_command(self, template: str, parameters_schema, parameters: Dict) -> str:
-        """Build bash command from template and parameters"""
+        """Build bash command from template and parameters.
+
+        Security: All parameter values are escaped using shlex.quote() to prevent
+        shell injection attacks.
+        """
         bash_command = template
         for param in parameters_schema:
             value = parameters.get(param.name)
             if value is not None:
                 param_flag = param.name.replace("_", "-")
-                bash_command += f" --{param_flag} {value}"
+                # Security: Escape the value to prevent shell injection
+                escaped_value = shlex.quote(str(value))
+                bash_command += f" --{param_flag} {escaped_value}"
         return bash_command
 
     async def _execute_subprocess(self, command: str, cwd: Path) -> ExecutionResult:

@@ -38,7 +38,7 @@ gcs = [
 ]
 
 [project.scripts]
-mcp-skill-server = "mcp_skill_server.server:run_server"
+mcp-skill-server = "mcp_skill_server.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/guideline-data/mcp-skill-server"
