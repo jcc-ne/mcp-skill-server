@@ -1,7 +1,7 @@
 ---
 name: hello-world
 description: A simple example skill that greets users. Use this to test your skill server setup.
-entry: python hello.py
+entry: uv run python hello.py
 ---
 
 # Hello World Skill
