@@ -17,6 +17,7 @@ from .models import (
     SkillExecutionRequest,
     SkillExecutionResponse,
 )
+from .plugins import OutputHandler, LocalOutputHandler
 
 __version__ = "0.1.0"
 
@@ -28,6 +29,9 @@ __all__ = [
     "Skill",
     "SkillExecutor",
     "ExecutionResult",
+    # Plugins
+    "OutputHandler",
+    "LocalOutputHandler",
     # Functions
     "discover_commands",
     "parse_subcommands",

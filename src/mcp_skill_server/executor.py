@@ -5,9 +5,12 @@ import os
 import re
 import asyncio
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+if TYPE_CHECKING:
+    from .plugins.base import OutputHandler, OutputFile
 
 logger = logging.getLogger(__name__)
 
@@ -22,28 +25,39 @@ class ExecutionResult:
     return_code: int
     output_files: List[str]
     new_file_paths: List[Path]
+    processed_outputs: List["OutputFile"] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
-        return {
+        result = {
             "success": self.success,
             "stdout": self.stdout,
             "stderr": self.stderr,
             "return_code": self.return_code,
             "output_files": self.output_files,
         }
+        if self.processed_outputs:
+            result["processed_outputs"] = [
+                {
+                    "filename": o.filename,
+                    "url": o.url,
+                    "metadata": o.metadata,
+                }
+                for o in self.processed_outputs
+            ]
+        return result
 
 
 class SkillExecutor:
     """Executes skills and manages outputs"""
 
-    def __init__(self, output_handler: Optional[Callable[[List[Path], Path, str], Any]] = None):
+    def __init__(self, output_handler: Optional["OutputHandler"] = None):
         """
         Initialize the executor.
 
         Args:
-            output_handler: Optional callback for handling output files.
-                           Called with (file_paths, base_dir, skill_name).
+            output_handler: Optional OutputHandler plugin for processing output files.
+                           See plugins.LocalOutputHandler or plugins.GCSOutputHandler.
         """
         self.output_handler = output_handler
 
@@ -90,7 +104,11 @@ class SkillExecutor:
         result = await self._execute_subprocess(bash_command, skill.directory)
 
         if self.output_handler and result.success and result.new_file_paths:
-            await self.output_handler(result.new_file_paths, skill.directory, skill.name)
+            result.processed_outputs = await self.output_handler.process(
+                result.new_file_paths,
+                skill.name,
+                skill.directory,
+            )
 
         logger.info("=" * 60)
         if result.success:

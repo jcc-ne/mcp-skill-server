@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -11,16 +11,28 @@ from mcp.types import Tool, TextContent
 
 from .loader import SkillLoader
 from .executor import SkillExecutor
+from .plugins.base import OutputHandler
+from .plugins.local import LocalOutputHandler
 
 logger = logging.getLogger(__name__)
 
 
-def create_server(skills_path: str | Path) -> Server:
-    """Create an MCP server for the given skills directory."""
+def create_server(
+    skills_path: str | Path,
+    output_handler: Optional[OutputHandler] = None,
+) -> Server:
+    """Create an MCP server for the given skills directory.
+
+    Args:
+        skills_path: Path to the directory containing skills
+        output_handler: Optional output handler plugin. Defaults to LocalOutputHandler.
+    """
+    if output_handler is None:
+        output_handler = LocalOutputHandler()
 
     server = Server("mcp-skill-server")
     loader = SkillLoader(skills_path)
-    executor = SkillExecutor()
+    executor = SkillExecutor(output_handler=output_handler)
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
@@ -176,6 +188,14 @@ Return code: {result.return_code}
 """
                 if result.output_files:
                     output += f"\nOutput files:\n" + "\n".join(f"  - {f}" for f in result.output_files)
+
+                if result.processed_outputs:
+                    output += "\n\nProcessed outputs:\n"
+                    for po in result.processed_outputs:
+                        output += f"  - {po.filename}"
+                        if po.url:
+                            output += f" -> {po.url}"
+                        output += "\n"
 
                 return [TextContent(type="text", text=output)]
 
