@@ -35,7 +35,7 @@ if args.command == 'analyze':
 ---
 name: my-analysis
 description: Analyze data for a given year. Use when analyzing yearly trends.
-entry: python my_script.py
+entry: uv run python my_script.py
 ---
 
 # My Analysis Tool
@@ -53,11 +53,11 @@ Analyzes yearly data trends.
 
 ```bash
 # Test help parsing
-python my_script.py -h
-python my_script.py analyze -h
+uv run python my_script.py -h
+uv run python my_script.py analyze -h
 
 # Run the MCP server
-mcp-skill-server /path/to/skills
+uv run mcp-skill-server /path/to/skills
 ```
 
 ## Converting Existing Scripts
