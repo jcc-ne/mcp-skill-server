@@ -9,11 +9,16 @@ Building skills for enterprise agents is slow: write code → deploy → test �
 ## Quick Start
 
 ```bash
-# Install
-pip install mcp-skill-server
+# Install with uv (recommended)
+uv pip install mcp-skill-server
 
-# Point to your skills folder
-mcp-skill-server /path/to/my/skills
+# Or install from source
+git clone https://github.com/your-org/mcp-skill-server
+cd mcp-skill-server
+uv sync
+
+# Run the server
+uv run mcp-skill-server /path/to/my/skills
 ```
 
 Add to your MCP client config (e.g., Claude Desktop):
@@ -22,8 +27,8 @@ Add to your MCP client config (e.g., Claude Desktop):
 {
   "mcpServers": {
     "skills": {
-      "command": "mcp-skill-server",
-      "args": ["/path/to/my/skills"]
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/mcp-skill-server", "mcp-skill-server", "/path/to/my/skills"]
     }
   }
 }
@@ -123,15 +128,32 @@ Files saved to `output/` are automatically detected. Alternatively, print `OUTPU
 
 ```bash
 # Clone and install
-git clone https://github.com/guideline-data/mcp-skill-server
+git clone https://github.com/your-org/mcp-skill-server
 cd mcp-skill-server
-pip install -e ".[dev]"
+uv sync --dev
 
 # Run tests
-pytest
+uv run pytest
 
 # Run server with example skills
-mcp-skill-server examples/
+uv run mcp-skill-server examples/
+```
+
+## Optional: GCS Output Handler
+
+To upload skill outputs to Google Cloud Storage:
+
+```bash
+uv sync --extra gcs
+```
+
+```python
+from mcp_skill_server.plugins import GCSOutputHandler
+
+handler = GCSOutputHandler(
+    bucket_name="my-bucket",
+    folder_prefix="skills/outputs/",
+)
 ```
 
 ## License
