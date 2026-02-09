@@ -82,6 +82,7 @@ class SkillExecutor:
         1. Entry must start with an allowed runtime
         2. Script file must exist within the skill directory
         3. No shell metacharacters in the base command
+        4. No absolute paths outside skill directory
 
         Raises:
             ValueError: If the entry command is invalid or unsafe
@@ -98,7 +99,24 @@ class SkillExecutor:
         parts = shlex.split(entry_command)
         script_path = None
 
+        # Skip runtime parts to find the script
+        skip_next = False
         for i, part in enumerate(parts):
+            if skip_next:
+                skip_next = False
+                continue
+
+            # Skip runtime commands
+            if part in ("python", "python3", "uv", "run", "node", "bash", "sh"):
+                continue
+
+            # Check for absolute paths (security risk)
+            if part.startswith("/"):
+                raise ValueError(
+                    f"Absolute paths not allowed in entry command: {part}"
+                )
+
+            # Found a script-like argument
             if part.endswith(".py") or part.endswith(".sh") or part.endswith(".js"):
                 script_path = part
                 break
