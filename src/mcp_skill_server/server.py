@@ -1,7 +1,10 @@
 """MCP Server for skill execution"""
 
+from __future__ import annotations
+
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
@@ -213,6 +216,65 @@ Return code: {result.return_code}
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
     return server
+
+
+def create_starlette_app(
+    skills_path: str | Path,
+    output_handler: Optional[OutputHandler] = None,
+    *,
+    stateless: bool = False,
+    json_response: bool = False,
+):
+    """Create a Starlette ASGI app serving this MCP server over streamable HTTP.
+
+    The returned app is ready to be mounted onto an existing FastAPI or
+    Starlette application::
+
+        from fastapi import FastAPI
+        from mcp_skill_server.server import create_starlette_app
+
+        app = FastAPI()
+        app.mount("/other-mcp", other_mcp_app)          # your existing MCP app
+        app.mount("/skills", create_starlette_app("./my-skills"))  # this one
+
+    Args:
+        skills_path: Path to the directory containing skills.
+        output_handler: Optional output handler plugin.
+            Defaults to LocalOutputHandler.
+        stateless: When True, each HTTP request gets a fresh session
+            (no persistent state across calls).  Useful for horizontal
+            scaling behind a load-balancer.
+        json_response: When True, return plain JSON instead of SSE streams.
+    """
+    from starlette.applications import Starlette
+    from starlette.routing import Route
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+
+    server = create_server(skills_path, output_handler)
+
+    session_manager = StreamableHTTPSessionManager(
+        app=server,
+        json_response=json_response,
+        stateless=stateless,
+    )
+
+    @asynccontextmanager
+    async def lifespan(app):
+        async with session_manager.run():
+            yield
+
+    # Thin ASGI wrapper so Starlette's Route treats it as a raw ASGI app
+    # rather than a request/response endpoint.
+    class _JsonRpcHandler:
+        async def __call__(self, scope, receive, send):
+            await session_manager.handle_request(scope, receive, send)
+
+    return Starlette(
+        routes=[
+            Route("/", endpoint=_JsonRpcHandler(), methods=["GET", "POST", "DELETE"]),
+        ],
+        lifespan=lifespan,
+    )
 
 
 async def main(skills_path: str):
