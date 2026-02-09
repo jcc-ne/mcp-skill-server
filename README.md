@@ -83,6 +83,33 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
+### Mounting onto an existing FastAPI / Starlette app
+
+If you already have a FastAPI app (potentially with another MCP server mounted), you can add the skill server as a sub-application using streamable HTTP transport:
+
+```python
+from fastapi import FastAPI
+from mcp_skill_server import create_starlette_app
+
+app = FastAPI()
+
+# Your existing MCP server
+app.mount("/other-mcp", other_mcp_app)
+
+# Mount the skill server alongside it
+app.mount("/skills", create_starlette_app("/path/to/my/skills"))
+```
+
+Each MCP server lives at its own path prefix, so clients connect to them independently (e.g. `http://localhost:8000/skills/` for the skill server).
+
+`create_starlette_app` accepts optional keyword arguments:
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `stateless` | `False` | No session persistence across requests. Useful for horizontal scaling. |
+| `json_response` | `False` | Return plain JSON instead of SSE streams. |
+| `output_handler` | `LocalOutputHandler()` | Plugin for processing skill output files. |
+
 ## Creating a Skill
 
 ### 1. Create a folder with your script
