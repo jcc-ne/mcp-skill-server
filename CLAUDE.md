@@ -21,6 +21,18 @@ uv run mcp-skill-server examples/
 # Run server with custom skills directory
 uv run mcp-skill-server /path/to/skills
 
+# Initialize a new skill (standalone command)
+uv run mcp-skill-init ./path/to/skill -n "skill-name" -d "Description"
+
+# Or use as subcommand
+uv run mcp-skill-server init ./path/to/skill
+
+# Validate a skill (standalone command)
+uv run mcp-skill-validate ./path/to/skill
+
+# Or use as subcommand
+uv run mcp-skill-server validate ./path/to/skill
+
 # Install with GCS output handler support
 uv sync --extra gcs
 ```

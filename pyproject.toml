@@ -5,10 +5,10 @@ build-backend = "hatchling.build"
 [project]
 name = "mcp-skill-server"
 version = "0.1.0"
-description = "MCP server for local skill development and testing"
+description = "Develop AI skills locally in your editor, deploy to production when ready"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 authors = [
     { name = "Janine Cheng" },
 ]
@@ -18,9 +18,8 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "mcp>=1.0.0",
@@ -29,20 +28,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-]
 gcs = [
     "google-cloud-storage>=2.0.0",
 ]
 
 [project.scripts]
 mcp-skill-server = "mcp_skill_server.cli:main"
+mcp-skill-init = "mcp_skill_server.cli:main_init"
+mcp-skill-validate = "mcp_skill_server.cli:main_validate"
 
 [project.urls]
-Homepage = "https://github.com/guideline-data/mcp-skill-server"
-Repository = "https://github.com/guideline-data/mcp-skill-server"
+Homepage = "https://github.com/jcc-ne/mcp-skill-server"
+Repository = "https://github.com/jcc-ne/mcp-skill-server"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_skill_server"]
@@ -54,6 +51,7 @@ testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
+    "pytest-cov>=7.0.0",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
 ]

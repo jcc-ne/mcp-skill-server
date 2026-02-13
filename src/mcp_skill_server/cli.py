@@ -383,5 +383,55 @@ def main():
         return 1
 
 
+def main_init():
+    """Entry point for mcp-skill-init command."""
+    parser = argparse.ArgumentParser(
+        prog="mcp-skill-init",
+        description="Initialize a new skill or convert a Claude skill to MCP skill",
+    )
+    parser.add_argument(
+        "path",
+        type=str,
+        help="Path to the skill directory to create/convert",
+    )
+    parser.add_argument(
+        "-n",
+        "--name",
+        type=str,
+        help="Skill name (defaults to directory name)",
+    )
+    parser.add_argument(
+        "-d",
+        "--description",
+        type=str,
+        help="Skill description",
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Overwrite existing files",
+    )
+
+    args = parser.parse_args()
+    return init_skill(args)
+
+
+def main_validate():
+    """Entry point for mcp-skill-validate command."""
+    parser = argparse.ArgumentParser(
+        prog="mcp-skill-validate",
+        description="Validate a skill is ready for MCP deployment",
+    )
+    parser.add_argument(
+        "path",
+        type=str,
+        help="Path to the skill directory to validate",
+    )
+
+    args = parser.parse_args()
+    return validate_skill(args)
+
+
 if __name__ == "__main__":
     sys.exit(main())
