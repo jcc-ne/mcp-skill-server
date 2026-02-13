@@ -1,9 +1,13 @@
-"""Base class for output handlers."""
+"""Base classes for output handlers and response formatters."""
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, TYPE_CHECKING
 from dataclasses import dataclass
+
+if TYPE_CHECKING:
+    from ..executor import ExecutionResult
+    from ..loader import Skill
 
 
 @dataclass
@@ -41,5 +45,34 @@ class OutputHandler(ABC):
 
         Returns:
             List of OutputFile objects with processing results
+        """
+        pass
+
+
+class ResponseFormatter(ABC):
+    """
+    Base class for formatting MCP tool responses.
+
+    Implement this to customize how execution results are formatted
+    in MCP tool responses (e.g., add structured JSON, custom formatting, etc.)
+    """
+
+    @abstractmethod
+    def format_execution_result(
+        self,
+        result: "ExecutionResult",
+        skill: "Skill",
+        command: str,
+    ) -> str:
+        """
+        Format an execution result for MCP tool response.
+
+        Args:
+            result: The execution result to format
+            skill: The skill that was executed
+            command: The command that was executed
+
+        Returns:
+            Formatted string for TextContent response
         """
         pass

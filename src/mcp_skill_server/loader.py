@@ -101,7 +101,7 @@ class Skill:
 
 
 async def run_command(
-    command: str, cwd: Path, timeout: int = 10
+    command: str, cwd: Path, timeout: int = 30
 ) -> asyncio.subprocess.Process:
     """Run a shell command and return stdout/stderr"""
     try:
@@ -209,11 +209,18 @@ def parse_parameters(help_text: str) -> List[SkillParameter]:
             if param not in ["h", "help"]
         )
 
+    # Track parameters we've already added to avoid duplicates
+    param_names_seen = set()
+
     i = 0
     while i < len(lines):
         line = lines[i]
 
-        opt_match = re.match(r"\s+(?:-\w,\s+)?--?([\w-]+)(?:\s+([A-Z_]+))?\s*$", line)
+        # Match parameter lines - description can be on same line or next line
+        # Pattern: "  --param-name METAVAR" or "  --param-name METAVAR   description..."
+        opt_match = re.match(
+            r"\s+(?:-\w,\s+)?--?([\w-]+)(?:\s+([A-Z_]+))?(?:\s|$)", line
+        )
         if opt_match:
             param_name = opt_match.group(1).replace("-", "_")
             metavar = opt_match.group(2)
@@ -222,12 +229,25 @@ def parse_parameters(help_text: str) -> List[SkillParameter]:
                 i += 1
                 continue
 
+            # Skip if we've already seen this parameter
+            if param_name in param_names_seen:
+                i += 1
+                continue
+            param_names_seen.add(param_name)
+
+            # Check if description is on the same line (after multiple spaces)
+            # e.g., "  --item-ids ITEM_IDS Comma-separated..."
             description = ""
-            j = i + 1
-            while j < len(lines) and lines[j].startswith(" " * 10):
-                description += lines[j].strip() + " "
-                j += 1
-            description = description.strip()
+            same_line_desc = re.search(r"--[\w-]+(?:\s+[A-Z_]+)?\s{2,}(.+)", line)
+            if same_line_desc:
+                description = same_line_desc.group(1).strip()
+            else:
+                # Description on next line(s)
+                j = i + 1
+                while j < len(lines) and lines[j].startswith(" " * 10):
+                    description += lines[j].strip() + " "
+                    j += 1
+                description = description.strip()
 
             required = param_name in required_params
 
@@ -257,7 +277,8 @@ def parse_parameters(help_text: str) -> List[SkillParameter]:
 
 async def discover_commands(entry: str, cwd: Path) -> Dict[str, SkillCommand]:
     """Discover subcommands and parameters by parsing --help output"""
-    result = await run_command(f"{entry} -h", cwd)
+    # Use longer timeout for help commands (uv run can take time to set up environment)
+    result = await run_command(f"{entry} -h", cwd, timeout=30)
 
     if result.returncode != 0:
         logger.warning(f"Failed to get help for {entry}: {result.stderr}")
@@ -278,7 +299,7 @@ async def discover_commands(entry: str, cwd: Path) -> Dict[str, SkillCommand]:
     commands = {}
     tasks = []
     for subcmd_name in subcommands.keys():
-        tasks.append(run_command(f"{entry} {subcmd_name} -h", cwd))
+        tasks.append(run_command(f"{entry} {subcmd_name} -h", cwd, timeout=30))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
