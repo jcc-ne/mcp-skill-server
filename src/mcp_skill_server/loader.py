@@ -237,6 +237,7 @@ def parse_parameters(help_text: str) -> List[SkillParameter]:
             # Check if description is on the same line (after multiple spaces)
             # e.g., "  --item-ids ITEM_IDS Comma-separated..."
             description = ""
+            j = i  # Initialize j to current line
             same_line_desc = re.search(r"--[\w-]+(?:\s+[A-Z_]+)?\s{2,}(.+)", line)
             if same_line_desc:
                 description = same_line_desc.group(1).strip()

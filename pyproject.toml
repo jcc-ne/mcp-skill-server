@@ -5,10 +5,10 @@ build-backend = "hatchling.build"
 [project]
 name = "mcp-skill-server"
 version = "0.1.0"
-description = "MCP server for local skill development and testing"
+description = "Develop AI skills locally in your editor, deploy to production when ready"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 authors = [
     { name = "Janine Cheng" },
 ]
@@ -39,10 +39,12 @@ gcs = [
 
 [project.scripts]
 mcp-skill-server = "mcp_skill_server.cli:main"
+mcp-skill-init = "mcp_skill_server.cli:main_init"
+mcp-skill-validate = "mcp_skill_server.cli:main_validate"
 
 [project.urls]
-Homepage = "https://github.com/guideline-data/mcp-skill-server"
-Repository = "https://github.com/guideline-data/mcp-skill-server"
+Homepage = "https://github.com/jcc-ne/mcp-skill-server"
+Repository = "https://github.com/jcc-ne/mcp-skill-server"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_skill_server"]
