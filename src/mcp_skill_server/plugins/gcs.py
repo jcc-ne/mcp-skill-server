@@ -24,6 +24,7 @@ def _get_storage_client():
     if _storage_client is None:
         try:
             from google.cloud import storage
+
             _storage_client = storage.Client()
         except ImportError:
             raise ImportError(
@@ -150,22 +151,28 @@ class GCSOutputHandler(OutputHandler):
                 # Build download URL
                 download_url = None
                 if self.base_url:
-                    download_url = f"{self.base_url}{self.download_endpoint}{quote(gcs_uri)}"
+                    download_url = (
+                        f"{self.base_url}{self.download_endpoint}{quote(gcs_uri)}"
+                    )
 
-                results.append(OutputFile(
-                    filename=file_path.name,
-                    local_path=file_path,
-                    url=download_url,
-                    metadata={"gcs_uri": gcs_uri},
-                ))
+                results.append(
+                    OutputFile(
+                        filename=file_path.name,
+                        local_path=file_path,
+                        url=download_url,
+                        metadata={"gcs_uri": gcs_uri},
+                    )
+                )
 
             except Exception as e:
                 logger.error(f"Failed to upload {file_path.name}: {e}")
                 # Still include the file but without URL
-                results.append(OutputFile(
-                    filename=file_path.name,
-                    local_path=file_path,
-                    metadata={"error": str(e)},
-                ))
+                results.append(
+                    OutputFile(
+                        filename=file_path.name,
+                        local_path=file_path,
+                        metadata={"error": str(e)},
+                    )
+                )
 
         return results

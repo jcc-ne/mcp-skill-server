@@ -33,6 +33,7 @@ def init_skill(args: argparse.Namespace) -> int:
 
     if existing_skill_md.exists() and not args.force:
         import yaml
+
         content = existing_skill_md.read_text()
         if content.startswith("---"):
             parts = content.split("---", 2)
@@ -43,7 +44,9 @@ def init_skill(args: argparse.Namespace) -> int:
 
                     # Check if this is already an MCP skill (has entry)
                     if existing_frontmatter.get("entry"):
-                        print(f"Skill already has entry point: {existing_frontmatter['entry']}")
+                        print(
+                            f"Skill already has entry point: {existing_frontmatter['entry']}"
+                        )
                         print("Use --force to reinitialize")
                         return 1
 
@@ -71,7 +74,9 @@ description: {description}
 entry: {entry}
 ---
 
-{existing_content or f'''# {skill_name.replace('_', ' ').title()}
+{
+        existing_content
+        or f'''# {skill_name.replace('_', ' ').title()}
 
 ## Overview
 
@@ -85,7 +90,8 @@ Describe what this skill does.
 ## Parameters
 
 Document the available parameters here.
-'''}"""
+'''
+    }"""
 
     # Generate Python script with argparse template
     script_content = f'''#!/usr/bin/env python3
@@ -213,12 +219,11 @@ def validate_skill(args: argparse.Namespace) -> int:
     else:
         # Validate entry command
         if not any(entry.startswith(rt) for rt in ALLOWED_RUNTIMES):
-            errors.append(
-                f"Entry must start with allowed runtime: {ALLOWED_RUNTIMES}"
-            )
+            errors.append(f"Entry must start with allowed runtime: {ALLOWED_RUNTIMES}")
 
         # Check script exists
         import shlex
+
         parts_list = shlex.split(entry)
         script_path = None
         for part in parts_list:
@@ -241,6 +246,7 @@ def validate_skill(args: argparse.Namespace) -> int:
     if entry and not errors:
         print(f"Discovering commands from: {entry}")
         from .loader import discover_commands
+
         try:
             commands = asyncio.run(discover_commands(entry, skill_path))
             if commands:
@@ -306,7 +312,8 @@ def main():
         help="Path to the skills directory",
     )
     serve_parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose logging",
     )
@@ -322,17 +329,20 @@ def main():
         help="Path to the skill directory to create/convert",
     )
     init_parser.add_argument(
-        "-n", "--name",
+        "-n",
+        "--name",
         type=str,
         help="Skill name (defaults to directory name)",
     )
     init_parser.add_argument(
-        "-d", "--description",
+        "-d",
+        "--description",
         type=str,
         help="Skill description",
     )
     init_parser.add_argument(
-        "-f", "--force",
+        "-f",
+        "--force",
         action="store_true",
         help="Overwrite existing files",
     )
