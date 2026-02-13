@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class SkillInfo(BaseModel):
     """Summary info for a skill"""
+
     name: str
     description: str
 

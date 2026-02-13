@@ -91,7 +91,6 @@ class Skill:
             or not self._schema_cache_time
             or now - self._schema_cache_time > self._schema_ttl
         ):
-
             logger.info(f"Discovering commands for skill: {self.name}")
             self.commands = await discover_commands(self.entry_command, self.directory)
             self._schema_cache_time = now

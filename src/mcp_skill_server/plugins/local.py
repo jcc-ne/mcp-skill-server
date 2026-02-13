@@ -24,10 +24,12 @@ class LocalOutputHandler(OutputHandler):
         results = []
 
         for file_path in file_paths:
-            results.append(OutputFile(
-                filename=file_path.name,
-                local_path=file_path,
-                url=f"file://{file_path.absolute()}",
-            ))
+            results.append(
+                OutputFile(
+                    filename=file_path.name,
+                    local_path=file_path,
+                    url=f"file://{file_path.absolute()}",
+                )
+            )
 
         return results
