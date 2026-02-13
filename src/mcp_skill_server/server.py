@@ -1,7 +1,10 @@
 """MCP Server for skill execution"""
 
+from __future__ import annotations
+
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional
 
@@ -11,8 +14,9 @@ from mcp.types import Tool, TextContent
 
 from .loader import SkillLoader
 from .executor import SkillExecutor
-from .plugins.base import OutputHandler
+from .plugins.base import OutputHandler, ResponseFormatter
 from .plugins.local import LocalOutputHandler
+from .plugins.formatters import DefaultResponseFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +24,20 @@ logger = logging.getLogger(__name__)
 def create_server(
     skills_path: str | Path,
     output_handler: Optional[OutputHandler] = None,
+    response_formatter: Optional[ResponseFormatter] = None,
 ) -> Server:
     """Create an MCP server for the given skills directory.
 
     Args:
         skills_path: Path to the directory containing skills
         output_handler: Optional output handler plugin. Defaults to LocalOutputHandler.
+        response_formatter: Optional response formatter plugin. Defaults to DefaultResponseFormatter.
     """
     if output_handler is None:
         output_handler = LocalOutputHandler()
+
+    if response_formatter is None:
+        response_formatter = DefaultResponseFormatter()
 
     server = Server("mcp-skill-server")
     loader = SkillLoader(skills_path)
@@ -112,20 +121,25 @@ def create_server(
                 for skill_id, skill in loader.skills.items()
             ]
 
-            return [TextContent(
-                type="text",
-                text=f"Available skills ({len(loader.skills)}):\n" + "\n".join(skills_info)
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Available skills ({len(loader.skills)}):\n"
+                    + "\n".join(skills_info),
+                )
+            ]
 
         elif name == "get_skill":
             skill_name = arguments.get("skill_name", "").lower().replace("-", "_")
             skill = loader.get_skill(skill_name)
 
             if not skill:
-                return [TextContent(
-                    type="text",
-                    text=f"Skill '{skill_name}' not found. Available: {loader.list_skills()}"
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=f"Skill '{skill_name}' not found. Available: {loader.list_skills()}",
+                    )
+                ]
 
             # Ensure commands are discovered
             await skill.refresh_commands()
@@ -138,15 +152,19 @@ def create_server(
                 params_text = []
                 for p in cmd_info["parameters"]:
                     req = "(required)" if p["required"] else "(optional)"
-                    params_text.append(f"    --{p['name']} [{p['type']}] {req}: {p['description']}")
+                    params_text.append(
+                        f"    --{p['name']} [{p['type']}] {req}: {p['description']}"
+                    )
 
                 commands_text.append(
-                    f"  {cmd_name}: {cmd_info['description']}\n" + "\n".join(params_text)
+                    f"  {cmd_name}: {cmd_info['description']}\n"
+                    + "\n".join(params_text)
                 )
 
-            return [TextContent(
-                type="text",
-                text=f"""Skill: {skill.name}
+            return [
+                TextContent(
+                    type="text",
+                    text=f"""Skill: {skill.name}
 Description: {skill.description}
 Directory: {skill.directory}
 
@@ -154,20 +172,23 @@ Commands:
 {chr(10).join(commands_text)}
 
 Documentation:
-{skill.content}"""
-            )]
+{skill.content}""",
+                )
+            ]
 
         elif name == "run_skill":
             skill_name = arguments.get("skill_name", "").lower().replace("-", "_")
-            command = arguments.get("command", "default")
+            command = arguments.get("command", "")
             parameters = arguments.get("parameters", {})
 
             skill = loader.get_skill(skill_name)
             if not skill:
-                return [TextContent(
-                    type="text",
-                    text=f"Skill '{skill_name}' not found. Available: {loader.list_skills()}"
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=f"Skill '{skill_name}' not found. Available: {loader.list_skills()}",
+                    )
+                ]
 
             # Ensure commands are discovered
             await skill.refresh_commands()
@@ -175,27 +196,10 @@ Documentation:
             try:
                 result = await executor.execute(skill, command, parameters)
 
-                output = f"""Skill: {skill.name}
-Command: {command}
-Status: {"SUCCESS" if result.success else "FAILED"}
-Return code: {result.return_code}
-
---- stdout ---
-{result.stdout}
-
---- stderr ---
-{result.stderr}
-"""
-                if result.output_files:
-                    output += f"\nOutput files:\n" + "\n".join(f"  - {f}" for f in result.output_files)
-
-                if result.processed_outputs:
-                    output += "\n\nProcessed outputs:\n"
-                    for po in result.processed_outputs:
-                        output += f"  - {po.filename}"
-                        if po.url:
-                            output += f" -> {po.url}"
-                        output += "\n"
+                # Use response formatter plugin
+                output = response_formatter.format_execution_result(
+                    result, skill, command
+                )
 
                 return [TextContent(type="text", text=output)]
 
@@ -205,14 +209,78 @@ Return code: {result.return_code}
         elif name == "refresh_skills":
             loader.skills = {}
             loader.discover_skills()
-            return [TextContent(
-                type="text",
-                text=f"Refreshed. Found {len(loader.skills)} skills: {loader.list_skills()}"
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Refreshed. Found {len(loader.skills)} skills: {loader.list_skills()}",
+                )
+            ]
 
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
     return server
+
+
+def create_starlette_app(
+    skills_path: str | Path,
+    output_handler: Optional[OutputHandler] = None,
+    response_formatter: Optional[ResponseFormatter] = None,
+    *,
+    stateless: bool = False,
+    json_response: bool = False,
+):
+    """Create a Starlette ASGI app serving this MCP server over streamable HTTP.
+
+    The returned app is ready to be mounted onto an existing FastAPI or
+    Starlette application::
+
+        from fastapi import FastAPI
+        from mcp_skill_server.server import create_starlette_app
+
+        app = FastAPI()
+        app.mount("/other-mcp", other_mcp_app)          # your existing MCP app
+        app.mount("/skills", create_starlette_app("./my-skills"))  # this one
+
+    Args:
+        skills_path: Path to the directory containing skills.
+        output_handler: Optional output handler plugin.
+            Defaults to LocalOutputHandler.
+        response_formatter: Optional response formatter plugin.
+            Defaults to DefaultResponseFormatter.
+        stateless: When True, each HTTP request gets a fresh session
+            (no persistent state across calls).  Useful for horizontal
+            scaling behind a load-balancer.
+        json_response: When True, return plain JSON instead of SSE streams.
+    """
+    from starlette.applications import Starlette
+    from starlette.routing import Route
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+
+    server = create_server(skills_path, output_handler, response_formatter)
+
+    session_manager = StreamableHTTPSessionManager(
+        app=server,
+        json_response=json_response,
+        stateless=stateless,
+    )
+
+    @asynccontextmanager
+    async def lifespan(app):
+        async with session_manager.run():
+            yield
+
+    # Thin ASGI wrapper so Starlette's Route treats it as a raw ASGI app
+    # rather than a request/response endpoint.
+    class _JsonRpcHandler:
+        async def __call__(self, scope, receive, send):
+            await session_manager.handle_request(scope, receive, send)
+
+    return Starlette(
+        routes=[
+            Route("/", endpoint=_JsonRpcHandler(), methods=["GET", "POST", "DELETE"]),
+        ],
+        lifespan=lifespan,
+    )
 
 
 async def main(skills_path: str):
@@ -240,7 +308,8 @@ def run_server():
         help="Path to the skills directory",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose logging",
     )
