@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-skill-server"
-version = "0.1.1"
+version = "0.1.2"
 description = "Develop AI skills locally in your editor, deploy to production when ready"
 readme = "README.md"
 license = "MIT"
