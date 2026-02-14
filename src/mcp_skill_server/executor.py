@@ -1,17 +1,16 @@
 """Skill execution engine"""
 
+import asyncio
 import logging
 import os
 import re
 import shlex
-import asyncio
-from pathlib import Path
-from typing import Dict, Any, List, Optional, TYPE_CHECKING
-
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from .plugins.base import OutputHandler, OutputFile
+    from .plugins.base import OutputFile, OutputHandler
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +100,7 @@ class SkillExecutor:
         for part in parts:
             # First check: reject any absolute paths immediately
             if os.path.isabs(part):
-                raise ValueError(
-                    f"Absolute paths not allowed: {part}"
-                )
+                raise ValueError(f"Absolute paths not allowed: {part}")
 
             # Look for script file (with extension or relative path)
             if part.endswith(".py") or part.endswith(".sh") or part.endswith(".js"):
@@ -122,15 +119,11 @@ class SkillExecutor:
             try:
                 full_path.relative_to(skill_directory.resolve())
             except ValueError:
-                raise ValueError(
-                    f"Script path escapes skill directory: {script_path}"
-                )
+                raise ValueError(f"Script path escapes skill directory: {script_path}")
 
             # Check that the script exists
             if not full_path.exists():
-                raise ValueError(
-                    f"Script not found: {script_path} (looked in {skill_directory})"
-                )
+                raise ValueError(f"Script not found: {script_path} (looked in {skill_directory})")
 
     async def execute(
         self,
@@ -151,8 +144,7 @@ class SkillExecutor:
         cmd = skill.commands.get(command_name)
         if not cmd:
             raise ValueError(
-                f"Command '{command_name}' not found. "
-                f"Available: {list(skill.commands.keys())}"
+                f"Command '{command_name}' not found. Available: {list(skill.commands.keys())}"
             )
 
         # Security: Validate the entry command before execution
@@ -163,9 +155,7 @@ class SkillExecutor:
         if missing:
             raise ValueError(f"Missing required parameters: {missing}")
 
-        bash_command = self._build_command(
-            cmd.bash_template, cmd.parameters, parameters
-        )
+        bash_command = self._build_command(cmd.bash_template, cmd.parameters, parameters)
 
         logger.info("=" * 60)
         logger.info(f"Executing skill: {skill.name}")
@@ -187,7 +177,7 @@ class SkillExecutor:
 
         logger.info("=" * 60)
         if result.success:
-            logger.info(f"Skill completed successfully!")
+            logger.info("Skill completed successfully!")
             logger.info(
                 f"Output files: {', '.join(result.output_files) if result.output_files else 'None'}"
             )
@@ -221,9 +211,7 @@ class SkillExecutor:
         """Execute subprocess and capture output"""
         output_dir = cwd / "output"
         before_files = set(output_dir.glob("*")) if output_dir.exists() else set()
-        logger.info(
-            f"Before execution - files in output dir: {[f.name for f in before_files]}"
-        )
+        logger.info(f"Before execution - files in output dir: {[f.name for f in before_files]}")
 
         process = await asyncio.create_subprocess_shell(
             command,
@@ -258,9 +246,7 @@ class SkillExecutor:
         new_file_paths = sorted(after_files - before_files)
         new_files = [str(f.relative_to(cwd)) for f in new_file_paths]
 
-        logger.info(
-            f"After execution - files in output dir: {[f.name for f in after_files]}"
-        )
+        logger.info(f"After execution - files in output dir: {[f.name for f in after_files]}")
         logger.info(f"New files detected: {[f.name for f in new_file_paths]}")
 
         success = process.returncode == 0
@@ -270,16 +256,12 @@ class SkillExecutor:
             if output_file_match:
                 returned_file = output_file_match.group(1).strip()
                 returned_file_path = (
-                    Path(returned_file)
-                    if os.path.isabs(returned_file)
-                    else cwd / returned_file
+                    Path(returned_file) if os.path.isabs(returned_file) else cwd / returned_file
                 )
                 if returned_file_path.exists() and returned_file_path.is_file():
                     new_file_paths = [returned_file_path]
                     new_files = [str(returned_file_path.relative_to(cwd))]
-                    logger.info(
-                        f"Found returned output file in stdout: {returned_file_path}"
-                    )
+                    logger.info(f"Found returned output file in stdout: {returned_file_path}")
 
         return ExecutionResult(
             success=success,

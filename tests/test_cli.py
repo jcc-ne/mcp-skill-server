@@ -1,16 +1,15 @@
 """Tests for CLI commands: init, validate, and main entry points."""
 
 import argparse
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
 from unittest import mock
 
 import pytest
 import yaml
 
-from mcp_skill_server.cli import init_skill, validate_skill, main
-
+from mcp_skill_server.cli import init_skill, main, validate_skill
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -18,17 +17,22 @@ from mcp_skill_server.cli import init_skill, validate_skill, main
 
 
 def _init_args(path, name=None, description=None, force=False):
-    return argparse.Namespace(
-        path=str(path), name=name, description=description, force=force
-    )
+    return argparse.Namespace(path=str(path), name=name, description=description, force=force)
 
 
 def _validate_args(path):
     return argparse.Namespace(path=str(path))
 
 
-def _write_skill(skill_dir, *, name="test", desc="A test skill",
-                  entry="python test.py", script=True, output_dir=False):
+def _write_skill(
+    skill_dir,
+    *,
+    name="test",
+    desc="A test skill",
+    entry="python test.py",
+    script=True,
+    output_dir=False,
+):
     """Write a valid SKILL.md (and optionally a script + output dir)."""
     skill_dir.mkdir(parents=True, exist_ok=True)
     (skill_dir / "SKILL.md").write_text(
@@ -179,27 +183,21 @@ class TestValidateSkill:
     def test_missing_name(self, tmp_path_clean):
         skill_dir = tmp_path_clean / "no_name"
         skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\ndescription: d\nentry: python s.py\n---\nc"
-        )
+        (skill_dir / "SKILL.md").write_text("---\ndescription: d\nentry: python s.py\n---\nc")
         rc = validate_skill(_validate_args(skill_dir))
         assert rc == 1
 
     def test_missing_description(self, tmp_path_clean):
         skill_dir = tmp_path_clean / "no_desc"
         skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: x\nentry: python s.py\n---\nc"
-        )
+        (skill_dir / "SKILL.md").write_text("---\nname: x\nentry: python s.py\n---\nc")
         rc = validate_skill(_validate_args(skill_dir))
         assert rc == 1
 
     def test_missing_entry(self, tmp_path_clean):
         skill_dir = tmp_path_clean / "no_entry"
         skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(
-            "---\nname: x\ndescription: d\n---\nc"
-        )
+        (skill_dir / "SKILL.md").write_text("---\nname: x\ndescription: d\n---\nc")
         rc = validate_skill(_validate_args(skill_dir))
         assert rc == 1
 
@@ -262,9 +260,7 @@ class TestMain:
     def test_validate_subcommand(self, tmp_path_clean):
         skill_dir = tmp_path_clean / "cli_val"
         _write_skill(skill_dir, output_dir=True)
-        with mock.patch(
-            "sys.argv", ["mcp-skill-server", "validate", str(skill_dir)]
-        ):
+        with mock.patch("sys.argv", ["mcp-skill-server", "validate", str(skill_dir)]):
             rc = main()
         assert rc == 0
 

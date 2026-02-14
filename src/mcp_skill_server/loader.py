@@ -12,15 +12,15 @@ Skills have minimal frontmatter:
 Commands and parameters are discovered dynamically by running --help.
 """
 
-import logging
-import os
-import re
-import yaml
 import asyncio
-from pathlib import Path
-from typing import Dict, List, Optional, Any
+import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -86,22 +86,14 @@ class Skill:
         """Refresh command schema from --help output if stale"""
         now = datetime.now()
 
-        if (
-            force
-            or not self._schema_cache_time
-            or now - self._schema_cache_time > self._schema_ttl
-        ):
+        if force or not self._schema_cache_time or now - self._schema_cache_time > self._schema_ttl:
             logger.info(f"Discovering commands for skill: {self.name}")
             self.commands = await discover_commands(self.entry_command, self.directory)
             self._schema_cache_time = now
-            logger.info(
-                f"Found {len(self.commands)} commands: {list(self.commands.keys())}"
-            )
+            logger.info(f"Found {len(self.commands)} commands: {list(self.commands.keys())}")
 
 
-async def run_command(
-    command: str, cwd: Path, timeout: int = 30
-) -> asyncio.subprocess.Process:
+async def run_command(command: str, cwd: Path, timeout: int = 30) -> asyncio.subprocess.Process:
     """Run a shell command and return stdout/stderr"""
     try:
         process = await asyncio.create_subprocess_shell(
@@ -173,14 +165,9 @@ def infer_type(metavar: Optional[str], description: str) -> str:
     metavar_lower = metavar.lower()
     desc_lower = description.lower()
 
-    if any(
-        word in metavar_lower for word in ["year", "count", "num", "id", "port", "size"]
-    ):
+    if any(word in metavar_lower for word in ["year", "count", "num", "id", "port", "size"]):
         return "int"
-    if any(
-        word in metavar_lower
-        for word in ["file", "path", "name", "dir", "url", "string"]
-    ):
+    if any(word in metavar_lower for word in ["file", "path", "name", "dir", "url", "string"]):
         return "string"
     if any(word in desc_lower for word in ["integer", "number"]):
         return "int"
@@ -203,9 +190,7 @@ def parse_parameters(help_text: str) -> List[SkillParameter]:
         usage_without_optional = re.sub(r"\[--[\w-]+(?:\s+[A-Z_]+)?\]", "", usage_line)
         required_matches = re.findall(r"--?([\w-]+)", usage_without_optional)
         required_params = set(
-            param.replace("-", "_")
-            for param in required_matches
-            if param not in ["h", "help"]
+            param.replace("-", "_") for param in required_matches if param not in ["h", "help"]
         )
 
     # Track parameters we've already added to avoid duplicates
@@ -217,9 +202,7 @@ def parse_parameters(help_text: str) -> List[SkillParameter]:
 
         # Match parameter lines - description can be on same line or next line
         # Pattern: "  --param-name METAVAR" or "  --param-name METAVAR   description..."
-        opt_match = re.match(
-            r"\s+(?:-\w,\s+)?--?([\w-]+)(?:\s+([A-Z_]+))?(?:\s|$)", line
-        )
+        opt_match = re.match(r"\s+(?:-\w,\s+)?--?([\w-]+)(?:\s+([A-Z_]+))?(?:\s|$)", line)
         if opt_match:
             param_name = opt_match.group(1).replace("-", "_")
             metavar = opt_match.group(2)
@@ -253,9 +236,7 @@ def parse_parameters(help_text: str) -> List[SkillParameter]:
 
             if "(required)" in description.lower():
                 required = True
-                description = re.sub(
-                    r"\(required\)", "", description, flags=re.IGNORECASE
-                ).strip()
+                description = re.sub(r"\(required\)", "", description, flags=re.IGNORECASE).strip()
 
             param_type = infer_type(metavar, description)
 
@@ -288,7 +269,7 @@ async def discover_commands(entry: str, cwd: Path) -> Dict[str, SkillCommand]:
     subcommands = parse_subcommands(main_help)
 
     if not subcommands:
-        logger.info(f"No subcommands found, treating as single-command script")
+        logger.info("No subcommands found, treating as single-command script")
         params = parse_parameters(main_help)
         return {
             "default": SkillCommand(
@@ -355,9 +336,7 @@ class SkillLoader:
             if isinstance(skill, Skill):
                 skill_id = skill.name.lower().replace(" ", "_").replace("-", "_")
                 self.skills[skill_id] = skill
-                logger.info(
-                    f"Loaded skill: {skill.name} with {len(skill.commands)} command(s)"
-                )
+                logger.info(f"Loaded skill: {skill.name} with {len(skill.commands)} command(s)")
             elif isinstance(skill, Exception):
                 logger.error(f"Failed to load skill: {skill}")
 
@@ -407,9 +386,7 @@ class SkillLoader:
         content = skill_file.read_text()
 
         if not content.startswith("---"):
-            logger.warning(
-                f"Skill file {skill_file} must start with YAML frontmatter (---)"
-            )
+            logger.warning(f"Skill file {skill_file} must start with YAML frontmatter (---)")
             return None
 
         parts = content.split("---", 2)

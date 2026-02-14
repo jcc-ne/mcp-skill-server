@@ -1,11 +1,12 @@
 """Tests for MCP server tool handlers."""
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
 
-from mcp.types import ListToolsRequest, CallToolRequest
+import pytest
+from mcp.types import CallToolRequest, ListToolsRequest
+
 from mcp_skill_server.server import create_server
 
 
@@ -111,9 +112,7 @@ class TestGetSkill:
     async def test_missing_skill(self, skills_dir):
         server = create_server(skills_dir)
         handler = server.request_handlers[CallToolRequest]
-        result = await handler(
-            _call_tool_req("get_skill", {"skill_name": "nonexistent"})
-        )
+        result = await handler(_call_tool_req("get_skill", {"skill_name": "nonexistent"}))
         text = result.root.content[0].text
         assert "not found" in text.lower()
 
@@ -158,9 +157,7 @@ class TestRunSkill:
     async def test_run_missing_skill(self, skills_dir):
         server = create_server(skills_dir)
         handler = server.request_handlers[CallToolRequest]
-        result = await handler(
-            _call_tool_req("run_skill", {"skill_name": "nope"})
-        )
+        result = await handler(_call_tool_req("run_skill", {"skill_name": "nope"}))
         text = result.root.content[0].text
         assert "not found" in text.lower()
 

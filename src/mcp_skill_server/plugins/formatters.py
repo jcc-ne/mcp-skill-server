@@ -1,6 +1,5 @@
 """Default response formatter for MCP skill server."""
 
-import json
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -37,9 +36,7 @@ Return code: {result.return_code}
 {result.stderr}
 """
         if result.output_files:
-            output += f"\nOutput files:\n" + "\n".join(
-                f"  - {f}" for f in result.output_files
-            )
+            output += "\nOutput files:\n" + "\n".join(f"  - {f}" for f in result.output_files)
 
         if result.processed_outputs:
             output += "\n\nProcessed outputs:\n"

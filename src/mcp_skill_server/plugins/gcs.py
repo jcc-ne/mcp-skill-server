@@ -8,10 +8,10 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 from urllib.parse import quote
 
-from .base import OutputHandler, OutputFile
+from .base import OutputFile, OutputHandler
 
 logger = logging.getLogger(__name__)
 
@@ -151,9 +151,7 @@ class GCSOutputHandler(OutputHandler):
                 # Build download URL
                 download_url = None
                 if self.base_url:
-                    download_url = (
-                        f"{self.base_url}{self.download_endpoint}{quote(gcs_uri)}"
-                    )
+                    download_url = f"{self.base_url}{self.download_endpoint}{quote(gcs_uri)}"
 
                 results.append(
                     OutputFile(

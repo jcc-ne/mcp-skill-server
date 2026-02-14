@@ -1,21 +1,21 @@
 """Tests for skill loader: parsing, schema discovery, and skill management."""
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
 
+import pytest
+
 from mcp_skill_server.loader import (
+    Skill,
+    SkillCommand,
+    SkillLoader,
+    SkillParameter,
+    discover_commands,
     infer_type,
     parse_parameters,
     parse_subcommands,
-    discover_commands,
-    SkillLoader,
-    SkillParameter,
-    SkillCommand,
-    Skill,
 )
-
 
 # ---------------------------------------------------------------------------
 # infer_type
@@ -152,10 +152,7 @@ class TestParseParameters:
 
     def test_help_only(self):
         help_text = (
-            "usage: script.py [-h]\n"
-            "\n"
-            "options:\n"
-            "  -h, --help  show this help message and exit\n"
+            "usage: script.py [-h]\n\noptions:\n  -h, --help  show this help message and exit\n"
         )
         assert parse_parameters(help_text) == []
 

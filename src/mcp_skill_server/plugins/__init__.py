@@ -1,8 +1,8 @@
 """Plugins for skill execution: output handlers and response formatters."""
 
-from .base import OutputHandler, OutputFile, ResponseFormatter
-from .local import LocalOutputHandler
+from .base import OutputFile, OutputHandler, ResponseFormatter
 from .formatters import DefaultResponseFormatter
+from .local import LocalOutputHandler
 
 __all__ = [
     "OutputHandler",
@@ -14,7 +14,7 @@ __all__ = [
 
 # Optional GCS handler - import separately if google-cloud-storage is installed
 try:
-    from .gcs import GCSOutputHandler
+    from .gcs import GCSOutputHandler  # noqa: F401
 
     __all__.append("GCSOutputHandler")
 except ImportError:

@@ -5,9 +5,8 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
-from .server import create_server, main as run_server_main
+from .server import main as run_server_main
 
 
 def init_skill(args: argparse.Namespace) -> int:
@@ -44,9 +43,7 @@ def init_skill(args: argparse.Namespace) -> int:
 
                     # Check if this is already an MCP skill (has entry)
                     if existing_frontmatter.get("entry"):
-                        print(
-                            f"Skill already has entry point: {existing_frontmatter['entry']}"
-                        )
+                        print(f"Skill already has entry point: {existing_frontmatter['entry']}")
                         print("Use --force to reinitialize")
                         return 1
 
@@ -76,7 +73,7 @@ entry: {entry}
 
 {
         existing_content
-        or f'''# {skill_name.replace('_', ' ').title()}
+        or f'''# {skill_name.replace("_", " ").title()}
 
 ## Overview
 
@@ -172,6 +169,7 @@ if __name__ == "__main__":
 def validate_skill(args: argparse.Namespace) -> int:
     """Validate a skill is ready for MCP deployment."""
     import yaml
+
     from .executor import ALLOWED_RUNTIMES
 
     skill_path = Path(args.path)

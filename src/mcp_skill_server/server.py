@@ -10,13 +10,13 @@ from typing import Any, Optional
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
-from .loader import SkillLoader
 from .executor import SkillExecutor
+from .loader import SkillLoader
 from .plugins.base import OutputHandler, ResponseFormatter
-from .plugins.local import LocalOutputHandler
 from .plugins.formatters import DefaultResponseFormatter
+from .plugins.local import LocalOutputHandler
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,10 @@ def create_server(
 
     Args:
         skills_path: Path to the directory containing skills
-        output_handler: Optional output handler plugin. Defaults to LocalOutputHandler.
-        response_formatter: Optional response formatter plugin. Defaults to DefaultResponseFormatter.
+        output_handler: Optional output handler plugin.
+            Defaults to LocalOutputHandler.
+        response_formatter: Optional response formatter plugin.
+            Defaults to DefaultResponseFormatter.
     """
     if output_handler is None:
         output_handler = LocalOutputHandler()
@@ -60,7 +62,7 @@ def create_server(
             ),
             Tool(
                 name="get_skill",
-                description="Get details about a specific skill including its commands and parameters",
+                description="Get skill details including commands and parameters",  # noqa
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -84,7 +86,9 @@ def create_server(
                         },
                         "command": {
                             "type": "string",
-                            "description": "Command to execute (use 'default' for single-command skills)",
+                            "description": (
+                                "Command to execute (use 'default' for single-command skills)"
+                            ),
                             "default": "default",
                         },
                         "parameters": {
@@ -117,15 +121,13 @@ def create_server(
                 loader.discover_skills()
 
             skills_info = [
-                f"- {skill_id}: {skill.description}"
-                for skill_id, skill in loader.skills.items()
+                f"- {skill_id}: {skill.description}" for skill_id, skill in loader.skills.items()
             ]
 
             return [
                 TextContent(
                     type="text",
-                    text=f"Available skills ({len(loader.skills)}):\n"
-                    + "\n".join(skills_info),
+                    text=f"Available skills ({len(loader.skills)}):\n" + "\n".join(skills_info),
                 )
             ]
 
@@ -152,13 +154,10 @@ def create_server(
                 params_text = []
                 for p in cmd_info["parameters"]:
                     req = "(required)" if p["required"] else "(optional)"
-                    params_text.append(
-                        f"    --{p['name']} [{p['type']}] {req}: {p['description']}"
-                    )
+                    params_text.append(f"    --{p['name']} [{p['type']}] {req}: {p['description']}")
 
                 commands_text.append(
-                    f"  {cmd_name}: {cmd_info['description']}\n"
-                    + "\n".join(params_text)
+                    f"  {cmd_name}: {cmd_info['description']}\n" + "\n".join(params_text)
                 )
 
             return [
@@ -197,9 +196,7 @@ Documentation:
                 result = await executor.execute(skill, command, parameters)
 
                 # Use response formatter plugin
-                output = response_formatter.format_execution_result(
-                    result, skill, command
-                )
+                output = response_formatter.format_execution_result(result, skill, command)
 
                 return [TextContent(type="text", text=output)]
 
@@ -252,9 +249,9 @@ def create_starlette_app(
             scaling behind a load-balancer.
         json_response: When True, return plain JSON instead of SSE streams.
     """
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
     from starlette.applications import Starlette
     from starlette.routing import Route
-    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
     server = create_server(skills_path, output_handler, response_formatter)
 
