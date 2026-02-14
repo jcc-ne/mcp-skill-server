@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.jcc-ne/mcp-skill-server -->
+
 Most coding assistants now support skills natively, so an MCP server just for skill discovery isn't necessary. Where this package adds value is making skills' execution **deterministic and deployable** — with a fixed entry point and controlled execution, skills developed in your editor can run in non-sandboxed production environments. It also supports incremental loading, so agents discover skills on demand instead of loading everything upfront.
 
 ---
