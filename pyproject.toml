@@ -40,6 +40,7 @@ mcp-skill-validate = "mcp_skill_server.cli:main_validate"
 [project.urls]
 Homepage = "https://github.com/jcc-ne/mcp-skill-server"
 Repository = "https://github.com/jcc-ne/mcp-skill-server"
+Issues = "https://github.com/jcc-ne/mcp-skill-server/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_skill_server"]

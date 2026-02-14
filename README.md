@@ -3,6 +3,11 @@ Most coding assistants now support skills natively, so an MCP server just for sk
 ---
 # MCP Skill Server
 
+[![CI](https://github.com/jcc-ne/mcp-skill-server/actions/workflows/ci.yml/badge.svg)](https://github.com/jcc-ne/mcp-skill-server/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/mcp-skill-server)](https://pypi.org/project/mcp-skill-server/)
+[![Python](https://img.shields.io/pypi/pyversions/mcp-skill-server)](https://pypi.org/project/mcp-skill-server/)
+[![License](https://img.shields.io/github/license/jcc-ne/mcp-skill-server)](LICENSE)
+
 Build agent skills where you work. Write a Python script, add a `SKILL.md`, and your agent can use it immediately. Iterate in real-time as part of your daily workflow. When it's ready, deploy the same skill to production — no rewrite needed.
 
 ## Why?
@@ -34,62 +39,57 @@ Every agent that connects to the MCP server gets the same interface — `list_sk
 3. **Add a deterministic entry point** — declare `entry` in SKILL.md for reliable, secure execution. Use `skill init` to scaffold it, `skill validate` to check readiness.
 4. **Test with your production agent** — verify end-to-end in your target environment, then deploy.
 
-## Quick Start
+## Install
+
+### Claude Desktop (one-click)
+
+[![Install with Claude Desktop](https://img.shields.io/badge/Claude_Desktop-Install_Server-orange?logo=claude)](claudedesktop://install?config=%7B%22mcpServers%22%3A%7B%22skills%22%3A%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22mcp-skill-server%22%2C%22serve%22%2C%22.%2Fmy-skills%22%5D%7D%7D%7D)
+
+After installing, edit the skills path in your Claude Desktop config to point to your skills directory.
+
+### Claude Code
 
 ```bash
-# Install
+claude mcp add skills -- uvx mcp-skill-server serve /path/to/my/skills
+```
+
+### Cursor
+
+Add to `.cursor/mcp.json` in your project (or Settings → MCP → Add Server):
+
+```json
+{
+  "mcpServers": {
+    "skills": {
+      "command": "uvx",
+      "args": ["mcp-skill-server", "serve", "/path/to/my/skills"]
+    }
+  }
+}
+```
+
+### Manual install
+
+```bash
+# From PyPI (recommended)
 uv pip install mcp-skill-server
 
 # Or from source
 git clone https://github.com/jcc-ne/mcp-skill-server
 cd mcp-skill-server && uv sync
 
-# Run the server pointing at your skills directory
-uv run mcp-skill-server serve /path/to/my/skills
+# Run the server
+uvx mcp-skill-server serve /path/to/my/skills
 ```
 
-## Connect to Your Editor
-
-### Claude Code
-
-Add to `~/.claude.json
+Then add to your editor's MCP config:
 
 ```json
 {
   "mcpServers": {
     "skills": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/mcp-skill-server", "mcp-skill-server", "serve", "/path/to/my/skills"]
-    }
-  }
-}
-```
-
-### Cursor
-
-Add to Cursor MCP settings (Settings → MCP → Add Server) or `.cursor/mcp.json` in your project:
-
-```json
-{
-  "mcpServers": {
-    "skills": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/mcp-skill-server", "mcp-skill-server", "serve", "/path/to/my/skills"]
-    }
-  }
-}
-```
-
-### Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "skills": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/mcp-skill-server", "mcp-skill-server", "serve", "/path/to/my/skills"]
+      "command": "uvx",
+      "args": ["mcp-skill-server", "serve", "/path/to/my/skills"]
     }
   }
 }
