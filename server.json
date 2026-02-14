@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.jcc-ne/mcp-skill-server",
+  "description": "An MCP server that mounts your skill directory and add deterministic entry for deployment",
+  "repository": {
+    "url": "https://github.com/jcc-ne/mcp-skill-server",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "mcp-skill-server",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+      ]
+    }
+  ]
+}
