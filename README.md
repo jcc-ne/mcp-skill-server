@@ -248,6 +248,10 @@ uv run pytest
 uv run mcp-skill-server serve examples/
 ```
 
+## Further Reading
+
+- [Tool Design for LLMs](docs/TOOL_DESIGN_FOR_LLMS.md) — Why skills use a list/get/run pattern instead of exposing raw tools, and how it affects LLM accuracy
+
 ## License
 
 MIT
