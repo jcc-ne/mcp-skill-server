@@ -64,6 +64,28 @@ class TestListTools:
         names = {t.name for t in tools}
         assert names == {"list_skills", "get_skill", "run_skill", "refresh_skills"}
 
+    @pytest.mark.asyncio
+    async def test_tool_prefix_applied_to_all_names(self, skills_dir):
+        server = create_server(skills_dir, tool_prefix="coding")
+        handler = server.request_handlers[ListToolsRequest]
+        result = await handler(_list_tools_req())
+        names = {t.name for t in result.root.tools}
+        assert names == {
+            "coding_list_skills",
+            "coding_get_skill",
+            "coding_run_skill",
+            "coding_refresh_skills",
+        }
+
+    @pytest.mark.asyncio
+    async def test_no_prefix_keeps_original_names(self, skills_dir):
+        server = create_server(skills_dir, tool_prefix=None)
+        handler = server.request_handlers[ListToolsRequest]
+        result = await handler(_list_tools_req())
+        names = {t.name for t in result.root.tools}
+        assert "list_skills" in names
+        assert not any(n.startswith("_") for n in names)
+
 
 # ---------------------------------------------------------------------------
 # call_tool – list_skills
@@ -195,6 +217,50 @@ class TestRefreshSkills:
         server = create_server(skills_dir)
         handler = server.request_handlers[CallToolRequest]
         result = await handler(_call_tool_req("refresh_skills"))
+        text = result.root.content[0].text
+        assert "hello" in text
+
+
+# ---------------------------------------------------------------------------
+# Tool prefix – dispatch works with prefixed names
+# ---------------------------------------------------------------------------
+
+
+class TestToolPrefix:
+    @pytest.mark.asyncio
+    async def test_prefixed_list_skills(self, skills_dir):
+        server = create_server(skills_dir, tool_prefix="myenv")
+        handler = server.request_handlers[CallToolRequest]
+        result = await handler(_call_tool_req("myenv_list_skills"))
+        text = result.root.content[0].text
+        assert "hello" in text
+
+    @pytest.mark.asyncio
+    async def test_prefixed_run_skill(self, skills_dir):
+        server = create_server(skills_dir, tool_prefix="myenv")
+        handler = server.request_handlers[CallToolRequest]
+        result = await handler(
+            _call_tool_req(
+                "myenv_run_skill",
+                {"skill_name": "hello", "command": "default", "parameters": {}},
+            )
+        )
+        text = result.root.content[0].text
+        assert "Hello, World!" in text
+
+    @pytest.mark.asyncio
+    async def test_unprefixed_name_unknown_when_prefix_set(self, skills_dir):
+        server = create_server(skills_dir, tool_prefix="myenv")
+        handler = server.request_handlers[CallToolRequest]
+        result = await handler(_call_tool_req("list_skills"))
+        text = result.root.content[0].text
+        assert "Unknown tool" in text
+
+    @pytest.mark.asyncio
+    async def test_prefixed_refresh_skills(self, skills_dir):
+        server = create_server(skills_dir, tool_prefix="myenv")
+        handler = server.request_handlers[CallToolRequest]
+        result = await handler(_call_tool_req("myenv_refresh_skills"))
         text = result.root.content[0].text
         assert "hello" in text
 
