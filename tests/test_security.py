@@ -70,6 +70,18 @@ class TestAllowedRuntimes:
         (skill_dir / "script.js").write_text('console.log("hello")')
         executor._validate_entry_command("node script.js", skill_dir)
 
+    def test_ruby_allowed(self, skill_dir):
+        """Ruby runtime should be allowed."""
+        executor = SkillExecutor()
+        (skill_dir / "script.rb").write_text('puts "hello"')
+        executor._validate_entry_command("ruby script.rb", skill_dir)
+
+    def test_bundle_exec_ruby_allowed(self, skill_dir):
+        """bundle exec ruby should be allowed."""
+        executor = SkillExecutor()
+        (skill_dir / "script.rb").write_text('puts "hello"')
+        executor._validate_entry_command("bundle exec ruby script.rb", skill_dir)
+
     def test_bash_allowed(self, skill_dir):
         """Bash runtime should be allowed."""
         executor = SkillExecutor()

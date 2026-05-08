@@ -43,7 +43,7 @@ uv sync --extra gcs
 
 - **`server.py`**: MCP server entry point. Exposes four MCP tools: `list_skills`, `get_skill`, `run_skill`, `refresh_skills`. Uses stdio transport.
 
-- **`loader.py`**: Skill discovery and schema inference. Scans for `*/SKILL.md` files, parses YAML frontmatter, and dynamically discovers commands/parameters by running `--help` on each skill's entry command.
+- **`loader.py`**: Skill discovery and schema inference. Scans for `*/SKILL.md` files, parses YAML frontmatter, and dynamically discovers commands/parameters. First tries `<entry> --describe-schema` (language-agnostic JSON contract); falls back to parsing argparse `--help` output for Python skills.
 
 - **`executor.py`**: Runs skill commands as subprocesses. Detects output files in `output/` directory or via `OUTPUT_FILE:` prefix in stdout.
 
@@ -74,7 +74,67 @@ entry: uv run python script.py
 ---
 ```
 
-Commands and parameters are auto-discovered by parsing argparse `--help` output. Skills save outputs to `output/` directory.
+Commands and parameters are auto-discovered. Two contracts are supported:
+
+1. **`--describe-schema` (language-agnostic, recommended for non-Python)**: the entry command prints JSON to stdout and exits 0:
+   ```json
+   {
+     "commands": {
+       "default": {
+         "description": "Greet a user",
+         "parameters": [
+           {"name": "name", "required": true, "type": "string", "description": "Person to greet"}
+         ]
+       }
+     }
+   }
+   ```
+   Use `"default"` as the command name for single-command skills. `type` is one of `int`, `string`, `float`, `bool`.
+
+2. **Argparse `--help`**: Python skills using `argparse` work out of the box — the loader parses the `-h` output.
+
+Skills save outputs to `output/` directory (or print `OUTPUT_FILE:<path>` to stdout).
+
+Allowed runtimes (see `executor.ALLOWED_RUNTIMES`): `python`, `python3`, `uv run python`, `uv run`, `node`, `bundle exec ruby`, `ruby`, `bash`, `sh`, `./`.
+
+#### Ruby skill example
+
+```yaml
+---
+name: hello-ruby
+description: Greet someone in Ruby
+entry: bundle exec ruby hello.rb
+---
+```
+
+```ruby
+# hello.rb
+require 'json'
+require 'optparse'
+
+if ARGV.first == '--describe-schema'
+  puts JSON.generate(
+    commands: {
+      default: {
+        description: 'Greet someone',
+        parameters: [
+          { name: 'name', required: true, type: 'string', description: 'Who to greet' }
+        ]
+      }
+    }
+  )
+  exit 0
+end
+
+opts = {}
+OptionParser.new do |o|
+  o.on('--name NAME') { |v| opts[:name] = v }
+end.parse!
+
+File.write('output/greeting.txt', "hello, #{opts[:name]}!\n")
+```
+
+The executor builds flags as `--kebab-case value` (e.g., `plan_year` → `--plan-year 2024`), so Ruby skills must accept that wire format.
 
 ### Key Data Flow
 

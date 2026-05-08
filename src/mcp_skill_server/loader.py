@@ -12,6 +12,7 @@ Skills have minimal frontmatter:
 Commands and parameters are discovered dynamically by running --help.
 """
 
+import json
 import logging
 import os
 import re
@@ -275,8 +276,67 @@ def parse_parameters(help_text: str) -> List[SkillParameter]:
     return parameters
 
 
+def _commands_from_schema_json(
+    entry: str, payload: Dict[str, Any]
+) -> Optional[Dict[str, SkillCommand]]:
+    """Build SkillCommand map from a --describe-schema JSON payload.
+
+    Returns None if the payload is not shaped as expected, so callers can fall
+    back to argparse parsing.
+    """
+    raw_commands = payload.get("commands")
+    if not isinstance(raw_commands, dict) or not raw_commands:
+        return None
+
+    commands: Dict[str, SkillCommand] = {}
+    for cmd_name, cmd_def in raw_commands.items():
+        if not isinstance(cmd_def, dict):
+            return None
+        params = []
+        for p in cmd_def.get("parameters", []) or []:
+            if not isinstance(p, dict) or "name" not in p:
+                return None
+            params.append(
+                SkillParameter(
+                    name=p["name"],
+                    required=bool(p.get("required", False)),
+                    type=p.get("type", "string"),
+                    description=p.get("description", ""),
+                )
+            )
+        bash_template = entry if cmd_name == "default" else f"{entry} {cmd_name}"
+        commands[cmd_name] = SkillCommand(
+            name=cmd_name,
+            description=cmd_def.get("description", ""),
+            bash_template=bash_template,
+            parameters=params,
+        )
+    return commands
+
+
 async def discover_commands(entry: str, cwd: Path) -> Dict[str, SkillCommand]:
-    """Discover subcommands and parameters by parsing --help output"""
+    """Discover subcommands and parameters.
+
+    First tries `<entry> --describe-schema`, expecting JSON of the form:
+        {"commands": {"<name>": {"description": "...",
+                                   "parameters": [{"name": ..., "required": ...,
+                                                   "type": ..., "description": ...}]}}}
+    This is language-agnostic — Ruby/Go/etc. skills only need to print this blob.
+    Falls back to parsing argparse `-h` output for Python skills.
+    """
+    schema_result = await run_command(f"{entry} --describe-schema", cwd, timeout=30)
+    if schema_result.returncode == 0 and schema_result.stdout.strip():
+        try:
+            payload = json.loads(schema_result.stdout)
+            commands = _commands_from_schema_json(entry, payload)
+            if commands:
+                logger.info(
+                    f"Discovered {len(commands)} command(s) via --describe-schema"
+                )
+                return commands
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.debug(f"--describe-schema did not return valid JSON: {e}")
+
     # Use longer timeout for help commands (uv run can take time to set up environment)
     result = await run_command(f"{entry} -h", cwd, timeout=30)
 
