@@ -21,6 +21,8 @@ ALLOWED_RUNTIMES = (
     "uv run python",
     "uv run",
     "node",
+    "bundle exec ruby",
+    "ruby",
     "bash",
     "sh",
     "./",
@@ -103,7 +105,7 @@ class SkillExecutor:
                 raise ValueError(f"Absolute paths not allowed: {part}")
 
             # Look for script file (with extension or relative path)
-            if part.endswith(".py") or part.endswith(".sh") or part.endswith(".js"):
+            if part.endswith((".py", ".sh", ".js", ".rb")):
                 script_path = part
                 break
             # Check if it's a relative path starting with ./
