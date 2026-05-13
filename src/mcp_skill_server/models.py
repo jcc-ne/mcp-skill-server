@@ -1,7 +1,6 @@
 """Pydantic models for MCP skill server"""
 
-from typing import Any, Dict, List
-
+from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 
 

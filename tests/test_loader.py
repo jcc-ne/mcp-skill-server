@@ -205,6 +205,58 @@ class TestParseSubcommands:
     def test_empty_help(self):
         assert parse_subcommands("") == {}
 
+    def test_wrapped_long_subcommand_name(self):
+        """argparse wraps the description onto the next line when name + indent
+        exceeds max_help_position (default 24). The parser must still capture
+        these long-named subcommands."""
+        help_text = (
+            "usage: tool.py [-h]\n"
+            "               {corrections,admin-proposals,admin-proposal-units,test-results}\n"
+            "               ...\n"
+            "\n"
+            "Investigate plan corrections\n"
+            "\n"
+            "positional arguments:\n"
+            "  {corrections,admin-proposals,admin-proposal-units,test-results}\n"
+            "                        Available commands\n"
+            "    corrections         Fetch correction proposal units\n"
+            "    admin-proposals     Fetch admin compliance proposals\n"
+            "    admin-proposal-units\n"
+            "                        Fetch admin compliance proposal units\n"
+            "    test-results        Fetch compliance test results\n"
+            "\n"
+            "options:\n"
+            "  -h, --help            show this help message and exit\n"
+        )
+        subcmds = parse_subcommands(help_text)
+        assert "admin-proposal-units" in subcmds
+        assert subcmds["admin-proposal-units"] == "Fetch admin compliance proposal units"
+        assert subcmds["corrections"] == "Fetch correction proposal units"
+
+    def test_wrapped_long_name_multiline_description(self):
+        help_text = (
+            "usage: tool.py [-h] {short,a-very-long-subcommand-name} ...\n"
+            "\n"
+            "Demo\n"
+            "\n"
+            "positional arguments:\n"
+            "  {short,a-very-long-subcommand-name}\n"
+            "                        Available commands\n"
+            "    short               Quick description\n"
+            "    a-very-long-subcommand-name\n"
+            "                        First sentence of the description.\n"
+            "                        Second sentence that wraps onto another line.\n"
+            "\n"
+            "options:\n"
+            "  -h, --help            show this help message and exit\n"
+        )
+        subcmds = parse_subcommands(help_text)
+        assert subcmds["short"] == "Quick description"
+        assert (
+            subcmds["a-very-long-subcommand-name"]
+            == "First sentence of the description. Second sentence that wraps onto another line."
+        )
+
 
 # ---------------------------------------------------------------------------
 # Skill.to_tool_definition

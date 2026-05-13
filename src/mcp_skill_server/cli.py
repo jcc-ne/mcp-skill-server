@@ -5,8 +5,9 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
-from .server import main as run_server_main
+from .server import create_server, main as run_server_main
 
 
 def init_skill(args: argparse.Namespace) -> int:
@@ -169,8 +170,7 @@ if __name__ == "__main__":
 def validate_skill(args: argparse.Namespace) -> int:
     """Validate a skill is ready for MCP deployment."""
     import yaml
-
-    from .executor import ALLOWED_RUNTIMES
+    from .executor import ALLOWED_RUNTIMES, SCRIPT_EXTENSIONS
 
     skill_path = Path(args.path)
     skill_md = skill_path / "SKILL.md"
@@ -225,7 +225,7 @@ def validate_skill(args: argparse.Namespace) -> int:
         parts_list = shlex.split(entry)
         script_path = None
         for part in parts_list:
-            if part.endswith((".py", ".sh", ".js")) or part.startswith("./"):
+            if part.endswith(SCRIPT_EXTENSIONS) or part.startswith("./"):
                 script_path = part
                 break
 
@@ -287,7 +287,7 @@ def run_server(args: argparse.Namespace) -> int:
     else:
         logging.basicConfig(level=logging.INFO)
 
-    asyncio.run(run_server_main(args.skills_path, tool_prefix=getattr(args, "tool_prefix", None)))
+    asyncio.run(run_server_main(args.skills_path))
     return 0
 
 
@@ -314,19 +314,6 @@ def main():
         "--verbose",
         action="store_true",
         help="Enable verbose logging",
-    )
-    serve_parser.add_argument(
-        "-p",
-        "--tool-prefix",
-        type=str,
-        default=None,
-        dest="tool_prefix",
-        metavar="PREFIX",
-        help=(
-            "Prefix for MCP tool names (e.g. 'coding' → 'coding_list_skills'). "
-            "Use this when connecting multiple skill servers to the same client "
-            "to avoid tool name conflicts."
-        ),
     )
 
     # init command
@@ -379,13 +366,6 @@ def main():
             args.command = "serve"
             args.skills_path = sys.argv[1]
             args.verbose = "-v" in sys.argv or "--verbose" in sys.argv
-            # Pick up --tool-prefix / -p if provided
-            tool_prefix = None
-            for i, arg in enumerate(sys.argv):
-                if arg in ("--tool-prefix", "-p") and i + 1 < len(sys.argv):
-                    tool_prefix = sys.argv[i + 1]
-                    break
-            args.tool_prefix = tool_prefix
         else:
             parser.print_help()
             return 1

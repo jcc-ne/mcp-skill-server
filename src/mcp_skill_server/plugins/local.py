@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import List
 
-from .base import OutputFile, OutputHandler
+from .base import OutputHandler, OutputFile
 
 
 class LocalOutputHandler(OutputHandler):

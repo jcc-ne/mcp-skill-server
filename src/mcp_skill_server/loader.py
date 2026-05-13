@@ -12,15 +12,19 @@ Skills have minimal frontmatter:
 Commands and parameters are discovered dynamically by running --help.
 """
 
-import asyncio
+import json
 import logging
+import os
 import re
+import shlex
+import yaml
+import asyncio
+from pathlib import Path
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 
-import yaml
+from .executor import validate_entry_command
 
 logger = logging.getLogger(__name__)
 
@@ -94,10 +98,16 @@ class Skill:
 
 
 async def run_command(command: str, cwd: Path, timeout: int = 30) -> asyncio.subprocess.Process:
-    """Run a shell command and return stdout/stderr"""
+    """Run a command and return stdout/stderr.
+
+    Uses ``create_subprocess_exec`` (no shell) so callers must pass a
+    shell-safe, already-validated command string. ``shlex.split`` is used to
+    convert it to argv.
+    """
     try:
-        process = await asyncio.create_subprocess_shell(
-            command,
+        argv = shlex.split(command)
+        process = await asyncio.create_subprocess_exec(
+            *argv,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=str(cwd),
@@ -127,17 +137,26 @@ async def run_command(command: str, cwd: Path, timeout: int = 30) -> asyncio.sub
 
 
 def parse_subcommands(help_text: str) -> Dict[str, str]:
-    """Parse subcommands from argparse help output"""
+    """Parse subcommands from argparse help output.
+
+    argparse formats subcommand entries one of two ways:
+      1. Same-line:  "    name        description..."   (short names)
+      2. Wrapped:    "    long-name\\n                        description..."
+         when name + indent exceeds max_help_position (default 24).
+    """
     subcommands = {}
 
-    # Find the section with subcommand descriptions
     lines = help_text.split("\n")
     in_positional_section = False
     found_choices = False
 
-    for line in lines:
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+
         if "positional arguments:" in line.lower():
             in_positional_section = True
+            i += 1
             continue
 
         if in_positional_section and line and not line.startswith(" "):
@@ -146,13 +165,30 @@ def parse_subcommands(help_text: str) -> Dict[str, str]:
         if in_positional_section and not found_choices:
             if re.search(r"\{([^}]+)\}", line):
                 found_choices = True
+                i += 1
                 continue
 
         if in_positional_section and found_choices:
-            match = re.match(r"\s{4,}(\S+)\s{2,}(.+)", line)
-            if match:
-                cmd_name, cmd_desc = match.groups()
+            same_line = re.match(r"\s{4,}(\S+)\s{2,}(.+)", line)
+            if same_line:
+                cmd_name, cmd_desc = same_line.groups()
                 subcommands[cmd_name] = cmd_desc.strip()
+                i += 1
+                continue
+
+            name_only = re.match(r"\s{4,}(\S+)\s*$", line)
+            if name_only:
+                cmd_name = name_only.group(1)
+                description = ""
+                j = i + 1
+                while j < len(lines) and re.match(r"\s{8,}\S", lines[j]):
+                    description += lines[j].strip() + " "
+                    j += 1
+                subcommands[cmd_name] = description.strip()
+                i = j
+                continue
+
+        i += 1
 
     return subcommands
 
@@ -256,8 +292,88 @@ def parse_parameters(help_text: str) -> List[SkillParameter]:
     return parameters
 
 
+# Command and parameter names from --describe-schema JSON are interpolated
+# into bash_template and CLI flags, then passed through shlex.split into argv.
+# Restrict to a conservative identifier shape so a malicious schema can't
+# smuggle whitespace, quotes, or flag-like prefixes into the argv we hand to
+# the skill script.
+_SCHEMA_IDENT = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]{0,63}$")
+
+
+def _commands_from_schema_json(
+    entry: str, payload: Dict[str, Any]
+) -> Optional[Dict[str, SkillCommand]]:
+    """Build SkillCommand map from a --describe-schema JSON payload.
+
+    Returns None if the payload is not shaped as expected, so callers can fall
+    back to argparse parsing.
+    """
+    raw_commands = payload.get("commands")
+    if not isinstance(raw_commands, dict) or not raw_commands:
+        return None
+
+    commands: Dict[str, SkillCommand] = {}
+    for cmd_name, cmd_def in raw_commands.items():
+        if not isinstance(cmd_def, dict):
+            return None
+        if not _SCHEMA_IDENT.match(cmd_name):
+            logger.warning(f"Rejecting schema command with unsafe name: {cmd_name!r}")
+            return None
+        params = []
+        for p in cmd_def.get("parameters", []) or []:
+            if not isinstance(p, dict) or "name" not in p:
+                return None
+            param_name = p["name"]
+            if not _SCHEMA_IDENT.match(param_name):
+                logger.warning(f"Rejecting schema parameter with unsafe name: {param_name!r}")
+                return None
+            params.append(
+                SkillParameter(
+                    name=param_name,
+                    required=bool(p.get("required", False)),
+                    type=p.get("type", "string"),
+                    description=p.get("description", ""),
+                )
+            )
+        bash_template = entry if cmd_name == "default" else f"{entry} {cmd_name}"
+        commands[cmd_name] = SkillCommand(
+            name=cmd_name,
+            description=cmd_def.get("description", ""),
+            bash_template=bash_template,
+            parameters=params,
+        )
+    return commands
+
+
 async def discover_commands(entry: str, cwd: Path) -> Dict[str, SkillCommand]:
-    """Discover subcommands and parameters by parsing --help output"""
+    """Discover subcommands and parameters.
+
+    First tries `<entry> --describe-schema`, expecting JSON of the form:
+        {"commands": {"<name>": {"description": "...",
+                                   "parameters": [{"name": ..., "required": ...,
+                                                   "type": ..., "description": ...}]}}}
+    This is language-agnostic — Ruby/Go/etc. skills only need to print this blob.
+    Falls back to parsing argparse `-h` output for Python skills.
+    """
+    # Discovery shells out via run_command, so gate it on the same validation
+    # as execution before letting a SKILL.md `entry:` field touch the shell.
+    try:
+        validate_entry_command(entry, cwd)
+    except ValueError as e:
+        logger.warning(f"Refusing to discover commands for unsafe entry: {e}")
+        return {}
+
+    schema_result = await run_command(f"{entry} --describe-schema", cwd, timeout=30)
+    if schema_result.returncode == 0 and schema_result.stdout.strip():
+        try:
+            payload = json.loads(schema_result.stdout)
+            commands = _commands_from_schema_json(entry, payload)
+            if commands:
+                logger.info(f"Discovered {len(commands)} command(s) via --describe-schema")
+                return commands
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.debug(f"--describe-schema did not return valid JSON: {e}")
+
     # Use longer timeout for help commands (uv run can take time to set up environment)
     result = await run_command(f"{entry} -h", cwd, timeout=30)
 
@@ -269,7 +385,7 @@ async def discover_commands(entry: str, cwd: Path) -> Dict[str, SkillCommand]:
     subcommands = parse_subcommands(main_help)
 
     if not subcommands:
-        logger.info("No subcommands found, treating as single-command script")
+        logger.info(f"No subcommands found, treating as single-command script")
         params = parse_parameters(main_help)
         return {
             "default": SkillCommand(
