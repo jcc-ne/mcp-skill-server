@@ -10,13 +10,13 @@ from typing import Any, Optional
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import TextContent, Tool
+from mcp.types import Tool, TextContent
 
-from .executor import SkillExecutor
 from .loader import SkillLoader
+from .executor import SkillExecutor
 from .plugins.base import OutputHandler, ResponseFormatter
-from .plugins.formatters import DefaultResponseFormatter
 from .plugins.local import LocalOutputHandler
+from .plugins.formatters import DefaultResponseFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -25,19 +25,13 @@ def create_server(
     skills_path: str | Path,
     output_handler: Optional[OutputHandler] = None,
     response_formatter: Optional[ResponseFormatter] = None,
-    tool_prefix: Optional[str] = None,
 ) -> Server:
     """Create an MCP server for the given skills directory.
 
     Args:
         skills_path: Path to the directory containing skills
-        output_handler: Optional output handler plugin.
-            Defaults to LocalOutputHandler.
-        response_formatter: Optional response formatter plugin.
-            Defaults to DefaultResponseFormatter.
-        tool_prefix: Optional prefix for tool names (e.g. "coding" yields
-            "coding_list_skills").  Use this to avoid conflicts when a client
-            connects to multiple skill servers simultaneously.
+        output_handler: Optional output handler plugin. Defaults to LocalOutputHandler.
+        response_formatter: Optional response formatter plugin. Defaults to DefaultResponseFormatter.
     """
     if output_handler is None:
         output_handler = LocalOutputHandler()
@@ -49,9 +43,6 @@ def create_server(
     loader = SkillLoader(skills_path)
     executor = SkillExecutor(output_handler=output_handler)
 
-    def _tool_name(base: str) -> str:
-        return f"{tool_prefix}_{base}" if tool_prefix else base
-
     @server.list_tools()
     async def list_tools() -> list[Tool]:
         """List all available skills as MCP tools."""
@@ -60,7 +51,7 @@ def create_server(
 
         tools = [
             Tool(
-                name=_tool_name("list_skills"),
+                name="list_skills",
                 description="List all available skills",
                 inputSchema={
                     "type": "object",
@@ -68,8 +59,8 @@ def create_server(
                 },
             ),
             Tool(
-                name=_tool_name("get_skill"),
-                description="Get skill details including commands and parameters",  # noqa
+                name="get_skill",
+                description="Get details about a specific skill including its commands and parameters",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -82,7 +73,7 @@ def create_server(
                 },
             ),
             Tool(
-                name=_tool_name("run_skill"),
+                name="run_skill",
                 description="Execute a skill command with parameters",
                 inputSchema={
                     "type": "object",
@@ -93,9 +84,7 @@ def create_server(
                         },
                         "command": {
                             "type": "string",
-                            "description": (
-                                "Command to execute (use 'default' for single-command skills)"
-                            ),
+                            "description": "Command to execute (use 'default' for single-command skills)",
                             "default": "default",
                         },
                         "parameters": {
@@ -108,7 +97,7 @@ def create_server(
                 },
             ),
             Tool(
-                name=_tool_name("refresh_skills"),
+                name="refresh_skills",
                 description="Refresh the skill list (use after adding new skills)",
                 inputSchema={
                     "type": "object",
@@ -123,7 +112,7 @@ def create_server(
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle tool calls."""
 
-        if name == _tool_name("list_skills"):
+        if name == "list_skills":
             if not loader.skills:
                 loader.discover_skills()
 
@@ -138,7 +127,7 @@ def create_server(
                 )
             ]
 
-        elif name == _tool_name("get_skill"):
+        elif name == "get_skill":
             skill_name = arguments.get("skill_name", "").lower().replace("-", "_")
             skill = loader.get_skill(skill_name)
 
@@ -182,7 +171,7 @@ Documentation:
                 )
             ]
 
-        elif name == _tool_name("run_skill"):
+        elif name == "run_skill":
             skill_name = arguments.get("skill_name", "").lower().replace("-", "_")
             command = arguments.get("command", "")
             parameters = arguments.get("parameters", {})
@@ -210,7 +199,7 @@ Documentation:
             except ValueError as e:
                 return [TextContent(type="text", text=f"Error: {str(e)}")]
 
-        elif name == _tool_name("refresh_skills"):
+        elif name == "refresh_skills":
             loader.skills = {}
             loader.discover_skills()
             return [
@@ -256,9 +245,9 @@ def create_starlette_app(
             scaling behind a load-balancer.
         json_response: When True, return plain JSON instead of SSE streams.
     """
-    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
     from starlette.applications import Starlette
     from starlette.routing import Route
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
     server = create_server(skills_path, output_handler, response_formatter)
 
@@ -287,11 +276,11 @@ def create_starlette_app(
     )
 
 
-async def main(skills_path: str, tool_prefix: Optional[str] = None):
+async def main(skills_path: str):
     """Run the MCP server."""
     logging.basicConfig(level=logging.INFO)
 
-    server = create_server(skills_path, tool_prefix=tool_prefix)
+    server = create_server(skills_path)
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(

@@ -8,10 +8,10 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Dict, Optional
 from urllib.parse import quote
 
-from .base import OutputFile, OutputHandler
+from .base import OutputHandler, OutputFile
 
 logger = logging.getLogger(__name__)
 

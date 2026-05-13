@@ -1,16 +1,17 @@
 """Skill execution engine"""
 
-import asyncio
 import logging
 import os
 import re
 import shlex
-from dataclasses import dataclass, field
+import asyncio
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
+
+from dataclasses import dataclass, field
 
 if TYPE_CHECKING:
-    from .plugins.base import OutputFile, OutputHandler
+    from .plugins.base import OutputHandler, OutputFile
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,68 @@ ALLOWED_RUNTIMES = (
     "sh",
     "./",
 )
+
+# Recognized script extensions for the entry command
+SCRIPT_EXTENSIONS = (".py", ".sh", ".js", ".rb")
+
+# Shell-metacharacter denylist kept as defense-in-depth even though execution
+# uses create_subprocess_exec (no shell). Anything reaching the regex with
+# these chars is almost certainly an injection attempt and worth rejecting
+# loudly before shlex.split gets a chance to silently mangle it.
+_FORBIDDEN_SHELL_CHARS = re.compile(r"[;&|`$<>(){}\\\n\r#]")
+
+
+def validate_entry_command(entry_command: str, skill_directory: Path) -> None:
+    """Validate that an entry command is safe to execute.
+
+    Enforces a strict shape: ``<runtime> [runtime-flags] <script-in-skill-dir> [args]``.
+    A script-file token (ending in :data:`SCRIPT_EXTENSIONS` or starting with
+    ``./``) is required. This blocks inline-eval forms like ``ruby -e ...``,
+    ``bash -c ...``, and ``python -m http.server`` regardless of which flags
+    are passed, because none of them reference a script file.
+
+    Raises ValueError on:
+    - shell metacharacters that would enable injection,
+    - missing/disallowed runtime prefix,
+    - absolute paths or paths that escape ``skill_directory``,
+    - missing or multiple script-file tokens,
+    - a referenced script that does not exist on disk.
+    """
+    if _FORBIDDEN_SHELL_CHARS.search(entry_command):
+        raise ValueError(
+            f"Entry command contains forbidden shell metacharacters: {entry_command!r}"
+        )
+
+    if not any(entry_command.startswith(rt) for rt in ALLOWED_RUNTIMES):
+        raise ValueError(
+            f"Entry command must start with allowed runtime: {ALLOWED_RUNTIMES}. "
+            f"Got: {entry_command}"
+        )
+
+    parts = shlex.split(entry_command)
+    script_tokens = []
+    for part in parts:
+        if os.path.isabs(part):
+            raise ValueError(f"Absolute paths not allowed: {part}")
+        if part.endswith(SCRIPT_EXTENSIONS) or part.startswith("./"):
+            script_tokens.append(part)
+
+    if len(script_tokens) != 1:
+        raise ValueError(
+            "Entry command must reference exactly one script file "
+            f"(ending in {SCRIPT_EXTENSIONS} or starting with './'). "
+            f"Got {len(script_tokens)} in: {entry_command!r}"
+        )
+
+    script_path = script_tokens[0]
+    resolved_skill_dir = skill_directory.resolve()
+    full_path = (resolved_skill_dir / script_path).resolve()
+    try:
+        full_path.relative_to(resolved_skill_dir)
+    except ValueError:
+        raise ValueError(f"Script path escapes skill directory: {script_path}")
+    if not full_path.exists():
+        raise ValueError(f"Script not found: {script_path} (looked in {skill_directory})")
 
 
 @dataclass
@@ -76,56 +139,7 @@ class SkillExecutor:
         self.output_handler = output_handler
 
     def _validate_entry_command(self, entry_command: str, skill_directory: Path) -> None:
-        """
-        Validate that an entry command is safe to execute.
-
-        Security checks:
-        1. Entry must start with an allowed runtime
-        2. Script file must exist within the skill directory
-        3. No absolute paths or path traversal attempts
-
-        Raises:
-            ValueError: If the entry command is invalid or unsafe
-        """
-        # Check for allowed runtime prefix
-        if not any(entry_command.startswith(rt) for rt in ALLOWED_RUNTIMES):
-            raise ValueError(
-                f"Entry command must start with allowed runtime: {ALLOWED_RUNTIMES}. "
-                f"Got: {entry_command}"
-            )
-
-        # Extract the script path from the entry command
-        # Handle patterns like "uv run python script.py" or "python script.py"
-        parts = shlex.split(entry_command)
-        script_path = None
-
-        for part in parts:
-            # First check: reject any absolute paths immediately
-            if os.path.isabs(part):
-                raise ValueError(f"Absolute paths not allowed: {part}")
-
-            # Look for script file (with extension or relative path)
-            if part.endswith((".py", ".sh", ".js", ".rb")):
-                script_path = part
-                break
-            # Check if it's a relative path starting with ./
-            if part.startswith("./"):
-                script_path = part
-                break
-
-        if script_path:
-            # Resolve the script path relative to skill directory
-            full_path = (skill_directory / script_path).resolve()
-
-            # Ensure the script is within the skill directory (prevent path traversal)
-            try:
-                full_path.relative_to(skill_directory.resolve())
-            except ValueError:
-                raise ValueError(f"Script path escapes skill directory: {script_path}")
-
-            # Check that the script exists
-            if not full_path.exists():
-                raise ValueError(f"Script not found: {script_path} (looked in {skill_directory})")
+        validate_entry_command(entry_command, skill_directory)
 
     async def execute(
         self,
@@ -179,7 +193,7 @@ class SkillExecutor:
 
         logger.info("=" * 60)
         if result.success:
-            logger.info("Skill completed successfully!")
+            logger.info(f"Skill completed successfully!")
             logger.info(
                 f"Output files: {', '.join(result.output_files) if result.output_files else 'None'}"
             )
@@ -204,9 +218,14 @@ class SkillExecutor:
             value = parameters.get(param.name)
             if value is not None:
                 param_flag = param.name.replace("_", "-")
-                # Security: Escape the value to prevent shell injection
-                escaped_value = shlex.quote(str(value))
-                bash_command += f" --{param_flag} {escaped_value}"
+                if param.type == "bool":
+                    # store_true flags: presence = True, absence = False
+                    if value:
+                        bash_command += f" --{param_flag}"
+                else:
+                    # Security: Escape the value to prevent shell injection
+                    escaped_value = shlex.quote(str(value))
+                    bash_command += f" --{param_flag} {escaped_value}"
         return bash_command
 
     async def _execute_subprocess(self, command: str, cwd: Path) -> ExecutionResult:
@@ -215,8 +234,9 @@ class SkillExecutor:
         before_files = set(output_dir.glob("*")) if output_dir.exists() else set()
         logger.info(f"Before execution - files in output dir: {[f.name for f in before_files]}")
 
-        process = await asyncio.create_subprocess_shell(
-            command,
+        argv = shlex.split(command)
+        process = await asyncio.create_subprocess_exec(
+            *argv,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=str(cwd),
